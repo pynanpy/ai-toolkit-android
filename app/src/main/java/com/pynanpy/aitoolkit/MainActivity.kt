@@ -15,11 +15,13 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -33,6 +35,7 @@ data class ChatMessage(
 )
 
 class MainActivity : ComponentActivity() {
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -44,9 +47,13 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-@androidx.compose.runtime.Composable
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
 fun ChatScreen() {
-    var input by remember { mutableStateOf("") }
+
+    var input by remember {
+        mutableStateOf("")
+    }
 
     var messages by remember {
         mutableStateOf(
@@ -81,14 +88,15 @@ fun ChatScreen() {
                     .weight(1f)
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                reverseLayout = true
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                items(messages.reversed()) { message ->
+
+                items(messages) { message ->
 
                     Column(
                         modifier = Modifier.fillMaxWidth()
                     ) {
+
                         Text(
                             text = if (message.isUser) "你" else "AI",
                             style = MaterialTheme.typography.labelMedium
@@ -126,10 +134,13 @@ fun ChatScreen() {
 
                 Button(
                     onClick = {
+
                         if (input.isNotBlank()) {
 
+                            val userMessage = input.trim()
+
                             messages = messages + ChatMessage(
-                                text = input.trim(),
+                                text = userMessage,
                                 isUser = true
                             )
 
