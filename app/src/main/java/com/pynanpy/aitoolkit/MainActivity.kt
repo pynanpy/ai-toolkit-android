@@ -4,9 +4,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -36,7 +34,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 
@@ -68,9 +65,9 @@ fun App() {
     AnimatedContent(
         targetState = showSettings,
         label = "screen"
-    ) { settings ->
+    ) { isSettings ->
 
-        if (settings) {
+        if (isSettings) {
             SettingsScreen(
                 onSave = { _, _, _ ->
                     showSettings = false
@@ -103,7 +100,7 @@ fun ChatScreen(
         mutableStateOf(
             listOf(
                 ChatMessage(
-                    text = "你好，我是 AI Toolkit。\n\n你可以在设置中配置 OpenAI-compatible API。",
+                    text = "你好，我是 AI Toolkit。\n\n可以在右上角的设置中配置 AI API。",
                     isUser = false
                 )
             )
@@ -174,18 +171,12 @@ fun ChatScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(
-                            horizontal = 12.dp,
-                            vertical = 10.dp
-                        ),
-                    verticalAlignment = Alignment.Bottom
+                        .padding(12.dp)
                 ) {
 
                     OutlinedTextField(
                         value = input,
-                        onValueChange = {
-                            input = it
-                        },
+                        onValueChange = { input = it },
                         modifier = Modifier.weight(1f),
                         placeholder = {
                             Text("输入消息...")
@@ -203,21 +194,22 @@ fun ChatScreen(
 
                             if (input.isNotBlank()) {
 
-                                val text = input.trim()
+                                val userText = input.trim()
 
                                 messages = messages + ChatMessage(
-                                    text = text,
+                                    text = userText,
                                     isUser = true
                                 )
 
                                 messages = messages + ChatMessage(
-                                    text = "这是测试回复。\n\n下一步将接入真正的 AI API。",
+                                    text = "这是测试回复。\n\n下一步我们会接入真正的 AI API。",
                                     isUser = false
                                 )
 
                                 input = ""
                             }
-                        }
+                        },
+                        modifier = Modifier.padding(top = 6.dp)
                     ) {
                         Text("发送")
                     }
@@ -232,15 +224,46 @@ fun MessageBubble(
     message: ChatMessage
 ) {
 
-    AnimatedVisibility(
-        visible = true,
-        enter = fadeIn() + slideInVertically(
-            initialOffsetY = { it / 3 }
-        ),
-        exit = fadeOut()
+    val horizontalArrangement: Arrangement.Horizontal
+
+    if (message.isUser) {
+        horizontalArrangement = Arrangement.End
+    } else {
+        horizontalArrangement = Arrangement.Start
+    }
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = horizontalArrangement
     ) {
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = if (message.isUser) {
-    
+        val bubbleColor = if (message.isUser) {
+            MaterialTheme.colorScheme.primary
+        } else {
+            MaterialTheme.colorScheme.surfaceVariant
+        }
+
+        val textColor = if (message.isUser) {
+            MaterialTheme.colorScheme.onPrimary
+        } else {
+            MaterialTheme.colorScheme.onSurfaceVariant
+        }
+
+        Surface(
+            modifier = Modifier.fillMaxWidth(0.86f),
+            shape = RoundedCornerShape(18.dp),
+            color = bubbleColor
+        ) {
+
+            Text(
+                text = message.text,
+                modifier = Modifier.padding(
+                    horizontal = 16.dp,
+                    vertical = 12.dp
+                ),
+                color = textColor,
+                style = MaterialTheme.typography.bodyLarge
+            )
+        }
+    }
+}
