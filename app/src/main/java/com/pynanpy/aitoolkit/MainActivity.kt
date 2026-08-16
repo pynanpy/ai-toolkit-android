@@ -3,6 +3,14 @@ package com.pynanpy.aitoolkit
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,7 +22,7 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
@@ -35,6 +43,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.rememberCoroutineScope
@@ -85,14 +94,8 @@ fun App() {
     }
 
     LaunchedEffect(settingsToSave) {
-
         settingsToSave?.let {
-
-            SettingsRepository.save(
-                context,
-                it
-            )
-
+            SettingsRepository.save(context, it)
             settingsToSave = null
         }
     }
@@ -103,7 +106,6 @@ fun App() {
             modifier = Modifier.fillMaxSize(),
             contentAlignment = Alignment.Center
         ) {
-
             Text(
                 text = "AI Toolkit",
                 style = MaterialTheme.typography.titleLarge
@@ -113,24 +115,20 @@ fun App() {
         return
     }
 
-    if (showSettings) {
+if (showSettings) {
 
         SettingsScreen(
             initialBaseUrl = settings.baseUrl,
             initialApiKey = settings.apiKey,
             initialModel = settings.model,
 
-            onSave = {
-                    baseUrl,
-                    apiKey,
-                    model ->
+            onSave = { baseUrl, apiKey, model ->
 
-                val newSettings =
-                    AppSettings(
-                        baseUrl = baseUrl,
-                        apiKey = apiKey,
-                        model = model
-                    )
+                val newSettings = AppSettings(
+                    baseUrl = baseUrl,
+                    apiKey = apiKey,
+                    model = model
+                )
 
                 settings = newSettings
                 settingsToSave = newSettings
@@ -146,7 +144,6 @@ fun App() {
 
         ChatScreen(
             settings = settings,
-
             onOpenSettings = {
                 showSettings = true
             }
@@ -178,19 +175,15 @@ fun ChatScreen(
                 ChatMessage(
                     text =
                         "你好，我是 AI Toolkit。\n\n" +
-                        "可以在右上角的设置中配置 AI API，" +
-                        "然后开始聊天。",
+                        "你可以在右上角设置 API，然后开始聊天。",
                     isUser = false
                 )
             )
         )
     }
 
-    val listState =
-        rememberLazyListState()
-
-    val scope =
-        rememberCoroutineScope()
+    val listState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
 
     LaunchedEffect(messages.size) {
 
@@ -215,13 +208,17 @@ fun ChatScreen(
                         Text(
                             text = "AI Toolkit",
                             style =
-                                MaterialTheme.typography.titleLarge
+                                MaterialTheme
+                                    .typography
+                                    .titleLarge
                         )
 
                         Text(
                             text = settings.model,
                             style =
-                                MaterialTheme.typography.labelSmall
+                                MaterialTheme
+                                    .typography
+                                    .labelSmall
                         )
                     }
                 },
@@ -229,10 +226,8 @@ fun ChatScreen(
                 actions = {
 
                     TextButton(
-                        onClick =
-                            onOpenSettings
+                        onClick = onOpenSettings
                     ) {
-
                         Text("设置")
                     }
                 }
@@ -249,7 +244,8 @@ fun ChatScreen(
                     .padding(paddingValues)
                     .imePadding()
         ) {
-LazyColumn(
+
+            LazyColumn(
 
                 state = listState,
 
@@ -257,19 +253,18 @@ LazyColumn(
                     Modifier
                         .weight(1f)
                         .fillMaxWidth()
-                        .padding(
-                            horizontal = 14.dp
-                        ),
+                        .padding(horizontal = 14.dp),
 
                 verticalArrangement =
                     Arrangement.spacedBy(10.dp)
 
             ) {
 
-                items(messages) { message ->
+                itemsIndexed(messages) { index, message ->
 
                     MessageBubble(
-                        message = message
+                        message = message,
+                        animate = index == messages.lastIndex
                     )
                 }
 
@@ -277,48 +272,12 @@ LazyColumn(
 
                     item {
 
-                        Row(
-
-                            modifier =
-                                Modifier
-                                    .fillMaxWidth()
-                                    .padding(
-                                        horizontal = 8.dp,
-                                        vertical = 6.dp
-                                    ),
-
-                            verticalAlignment =
-                                Alignment.CenterVertically
-
-                        ) {
-
-                            CircularProgressIndicator(
-
-                                modifier =
-                                    Modifier.width(20.dp),
-
-                                strokeWidth = 2.dp
-                            )
-
-                            Spacer(
-                                modifier =
-                                    Modifier.width(8.dp)
-                            )
-
-                            Text(
-                                text =
-                                    "AI 正在思考...",
-                                style =
-                                    MaterialTheme
-                                        .typography
-                                        .bodyMedium
-                            )
-                        }
+                        ThinkingIndicator()
                     }
                 }
             }
 
-            Surface(
+Surface(
 
                 modifier =
                     Modifier.fillMaxWidth(),
@@ -361,7 +320,7 @@ LazyColumn(
                             !isLoading
                     )
 
-Spacer(
+                    Spacer(
                         modifier =
                             Modifier.width(8.dp)
                     )
@@ -387,8 +346,7 @@ Spacer(
                                     messages +
                                         ChatMessage(
                                             text =
-                                                "请先打开「设置」，" +
-                                                "填写 API Key。",
+                                                "请先打开「设置」，填写 API Key。",
                                             isUser = false
                                         )
 
@@ -404,7 +362,6 @@ Spacer(
                                         isUser = true
                                     )
 
-                            // 添加一个空的 AI 消息
                             messages =
                                 messages +
                                     ChatMessage(
@@ -416,7 +373,7 @@ Spacer(
 
                             scope.launch {
 
-                                val aiMessageIndex =
+                                val aiIndex =
                                     messages.lastIndex
 
                                 val result =
@@ -433,55 +390,47 @@ Spacer(
 
                                         message =
                                             userText
+
                                     ) { chunk ->
 
-                                        if (aiMessageIndex >=
+                                        if (
+                                            aiIndex <
                                             messages.size
                                         ) {
 
-return@sendMessageStream
+                                            val current =
+                                                messages[aiIndex]
+
+                                            messages =
+                                                messages
+                                                    .toMutableList()
+                                                    .also {
+
+                                                        it[aiIndex] =
+                                                            current.copy(
+                                                                text =
+                                                                    current.text +
+                                                                    chunk
+                                                            )
+                                                    }
+
+                                            listState.animateScrollToItem(
+                                                messages.lastIndex
+                                            )
                                         }
-
-                                        val current =
-                                            messages[
-                                                aiMessageIndex
-                                            ]
-
-                                        messages =
-                                            messages
-                                                .toMutableList()
-                                                .also {
-
-                                                    it[
-                                                        aiMessageIndex
-                                                    ] =
-                                                        current.copy(
-                                                            text =
-                                                                current.text +
-                                                                chunk
-                                                        )
-                                                }
-
-                                        listState.animateScrollToItem(
-                                            messages.lastIndex
-                                        )
                                     }
 
                                 result.onFailure { error ->
 
                                     val current =
-                                        messages[
-                                            aiMessageIndex
-                                        ]
+                                        messages[aiIndex]
 
                                     messages =
                                         messages
                                             .toMutableList()
                                             .also {
 
-                                                it[
-                                                    aiMessageIndex
-                                                ] =
+                                                it[aiIndex] =
                                                     current.copy(
                                                         text =
                                                             "请求失败：\n" +
@@ -515,98 +464,186 @@ return@sendMessageStream
 }
 
 @Composable
-fun MessageBubble(
-    message: ChatMessage
-) {
+fun ThinkingIndicator() {
 
-    val horizontalArrangement:
-        Arrangement.Horizontal
+    val transition =
+        rememberInfiniteTransition(
+            label = "thinking"
+        )
 
-    if (message.isUser) {
+    val alpha by transition.animateFloat(
+        initialValue = 0.35f,
+        targetValue = 1f,
 
-        horizontalArrangement =
-            Arrangement.End
+        animationSpec =
+            infiniteRepeatable(
+                animation =
+                    tween(700),
+                repeatMode =
+                    RepeatMode.Reverse
+            ),
 
-    } else {
-
-        horizontalArrangement =
-            Arrangement.Start
-    }
+        label = "thinkingAlpha"
+    )
 
     Row(
 
         modifier =
-            Modifier.fillMaxWidth(),
+            Modifier
+                .fillMaxWidth()
+                .padding(
+                    horizontal = 8.dp,
+                    vertical = 6.dp
+                ),
 
-        horizontalArrangement =
-            horizontalArrangement
+        verticalAlignment =
+            Alignment.CenterVertically
     ) {
 
-        val bubbleColor =
-
-            if (message.isUser) {
-
-                MaterialTheme
-                    .colorScheme
-                    .primary
-
-            } else {
-
-                MaterialTheme
-                    .colorScheme
-                    .surfaceVariant
-            }
-
-        val textColor =
-
-            if (message.isUser) {
-
-                MaterialTheme
-                    .colorScheme
-                    .onPrimary
-
-            } else {
-
-                MaterialTheme
-                    .colorScheme
-                    .onSurfaceVariant
-            }
-
-        Surface(
+        CircularProgressIndicator(
 
             modifier =
-                Modifier.fillMaxWidth(0.86f),
+                Modifier.width(20.dp),
 
-            shape =
-                RoundedCornerShape(18.dp),
+            strokeWidth = 2.dp
+        )
 
-            color =
-                bubbleColor
+        Spacer(
+            modifier =
+                Modifier.width(8.dp)
+        )
+
+        Text(
+            text = "AI 正在思考...",
+            modifier =
+                Modifier.graphicsLayer {
+                    this.alpha = alpha
+                },
+            style =
+                MaterialTheme
+                    .typography
+                    .bodyMedium
+        )
+    }
+}
+
+@Composable
+fun MessageBubble(
+    message: ChatMessage,
+    animate: Boolean
+) {
+
+    val horizontalArrangement =
+        if (message.isUser) {
+            Arrangement.End
+        } else {
+            Arrangement.Start
+        }
+
+    AnimatedVisibility(
+
+        visible = true,
+
+        enter =
+            if (animate) {
+
+                fadeIn(
+                    animationSpec =
+                        tween(220)
+                ) +
+                    slideInVertically(
+                        animationSpec =
+                            tween(280),
+                        initialOffsetY = {
+                            it / 5
+                        }
+                    )
+
+            } else {
+
+                fadeIn(
+                    animationSpec =
+                        tween(120)
+                )
+            }
+    ) {
+
+        Row(
+
+            modifier =
+                Modifier.fillMaxWidth(),
+
+            horizontalArrangement =
+                horizontalArrangement
         ) {
 
-            Text(
+            val bubbleColor =
+                if (message.isUser) {
 
-                text =
-                    if (message.text.isEmpty()) {
-                        "▌"
-                    } else {
-                        message.text
-                    },
+                    MaterialTheme
+                        .colorScheme
+                        .primary
+
+                } else {
+
+                    MaterialTheme
+                        .colorScheme
+                        .surfaceVariant
+                }
+
+            val textColor =
+                if (message.isUser) {
+
+                    MaterialTheme
+                        .colorScheme
+                        .onPrimary
+
+                } else {
+
+                    MaterialTheme
+                        .colorScheme
+                        .onSurfaceVariant
+                }
+
+            Surface(
 
                 modifier =
-                    Modifier.padding(
-                        horizontal = 16.dp,
-                        vertical = 12.dp
-                    ),
+                    Modifier.fillMaxWidth(0.86f),
+
+                shape =
+                    RoundedCornerShape(18.dp),
 
                 color =
-                    textColor,
+                    bubbleColor
+            ) {
 
-                style =
-                    MaterialTheme
-                        .typography
-                        .bodyLarge
-            )
+                Text(
+
+                    text =
+                        if (
+                            message.text.isEmpty() &&
+                            !message.isUser
+                        ) {
+                            "▌"
+                        } else {
+                            message.text
+                        },
+
+                    modifier =
+                        Modifier.padding(
+                            horizontal = 16.dp,
+                            vertical = 12.dp
+                        ),
+
+                    color =
+                        textColor,
+
+                    style =
+                        MaterialTheme
+                            .typography
+                            .bodyLarge
+                )
+            }
         }
     }
 }
