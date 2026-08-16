@@ -39,7 +39,10 @@ dependencies {
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
 
+    implementation("androidx.datastore:datastore-preferences:1.1.7")
 
-implementation("androidx.datastore:datastore-preferences:1.1.7")
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
+
     debugImplementation("androidx.compose.ui:ui-tooling")
 }
