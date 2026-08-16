@@ -35,9 +35,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.launch
 import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 
 data class ChatMessage(
     val text: String,
@@ -60,7 +61,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun App() {
 
-    val context = androidx.compose.ui.platform.LocalContext.current
+    val context = LocalContext.current
 
     var showSettings by remember {
         mutableStateOf(false)
@@ -84,8 +85,14 @@ fun App() {
     }
 
     LaunchedEffect(settingsToSave) {
+
         settingsToSave?.let {
-            SettingsRepository.save(context, it)
+
+            SettingsRepository.save(
+                context,
+                it
+            )
+
             settingsToSave = null
         }
     }
@@ -96,6 +103,7 @@ fun App() {
             modifier = Modifier.fillMaxSize(),
             contentAlignment = Alignment.Center
         ) {
+
             Text(
                 text = "AI Toolkit",
                 style = MaterialTheme.typography.titleLarge
@@ -112,13 +120,17 @@ fun App() {
             initialApiKey = settings.apiKey,
             initialModel = settings.model,
 
-            onSave = { baseUrl, apiKey, model ->
+            onSave = {
+                    baseUrl,
+                    apiKey,
+                    model ->
 
-                val newSettings = AppSettings(
-                    baseUrl = baseUrl,
-                    apiKey = apiKey,
-                    model = model
-                )
+                val newSettings =
+                    AppSettings(
+                        baseUrl = baseUrl,
+                        apiKey = apiKey,
+                        model = model
+                    )
 
                 settings = newSettings
                 settingsToSave = newSettings
@@ -134,6 +146,7 @@ fun App() {
 
         ChatScreen(
             settings = settings,
+
             onOpenSettings = {
                 showSettings = true
             }
@@ -157,21 +170,32 @@ fun ChatScreen(
     }
 
     var messages by remember {
+
         mutableStateOf(
+
             listOf(
+
                 ChatMessage(
-                    text = "你好，我是 AI Toolkit。\n\n可以在右上角的设置中配置 AI API，然后开始聊天。",
+                    text =
+                        "你好，我是 AI Toolkit。\n\n" +
+                        "可以在右上角的设置中配置 AI API，" +
+                        "然后开始聊天。",
                     isUser = false
                 )
             )
         )
     }
 
-    val listState = rememberLazyListState()
-    val scope = rememberCoroutineScope()
+    val listState =
+        rememberLazyListState()
+
+    val scope =
+        rememberCoroutineScope()
 
     LaunchedEffect(messages.size) {
+
         if (messages.isNotEmpty()) {
+
             listState.animateScrollToItem(
                 messages.lastIndex
             )
@@ -179,21 +203,25 @@ fun ChatScreen(
     }
 
     Scaffold(
+
         topBar = {
 
             TopAppBar(
+
                 title = {
 
                     Column {
 
                         Text(
                             text = "AI Toolkit",
-                            style = MaterialTheme.typography.titleLarge
+                            style =
+                                MaterialTheme.typography.titleLarge
                         )
 
                         Text(
                             text = settings.model,
-                            style = MaterialTheme.typography.labelSmall
+                            style =
+                                MaterialTheme.typography.labelSmall
                         )
                     }
                 },
@@ -201,32 +229,41 @@ fun ChatScreen(
                 actions = {
 
                     TextButton(
-                        onClick = onOpenSettings
+                        onClick =
+                            onOpenSettings
                     ) {
+
                         Text("设置")
                     }
                 }
             )
         }
+
     ) { paddingValues ->
 
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .imePadding()
-        ) {
 
-            LazyColumn(
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+                    .imePadding()
+        ) {
+LazyColumn(
+
                 state = listState,
 
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-                    .padding(horizontal = 14.dp),
+                modifier =
+                    Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .padding(
+                            horizontal = 14.dp
+                        ),
 
                 verticalArrangement =
                     Arrangement.spacedBy(10.dp)
+
             ) {
 
                 items(messages) { message ->
@@ -241,31 +278,40 @@ fun ChatScreen(
                     item {
 
                         Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(
-                                    horizontal = 8.dp,
-                                    vertical = 6.dp
-                                ),
+
+                            modifier =
+                                Modifier
+                                    .fillMaxWidth()
+                                    .padding(
+                                        horizontal = 8.dp,
+                                        vertical = 6.dp
+                                    ),
+
                             verticalAlignment =
                                 Alignment.CenterVertically
+
                         ) {
 
                             CircularProgressIndicator(
-                                modifier = Modifier
-                                    .width(20.dp)
-                                    .padding(end = 4.dp),
+
+                                modifier =
+                                    Modifier.width(20.dp),
+
                                 strokeWidth = 2.dp
                             )
 
                             Spacer(
-                                modifier = Modifier.width(8.dp)
+                                modifier =
+                                    Modifier.width(8.dp)
                             )
 
                             Text(
-                                text = "AI 正在思考...",
+                                text =
+                                    "AI 正在思考...",
                                 style =
-                                    MaterialTheme.typography.bodyMedium
+                                    MaterialTheme
+                                        .typography
+                                        .bodyMedium
                             )
                         }
                     }
@@ -273,27 +319,34 @@ fun ChatScreen(
             }
 
             Surface(
-                modifier = Modifier.fillMaxWidth(),
+
+                modifier =
+                    Modifier.fillMaxWidth(),
+
                 tonalElevation = 3.dp
             ) {
 
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(12.dp),
+
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp),
 
                     verticalAlignment =
                         Alignment.Bottom
                 ) {
 
                     OutlinedTextField(
+
                         value = input,
 
                         onValueChange = {
                             input = it
                         },
 
-                        modifier = Modifier.weight(1f),
+                        modifier =
+                            Modifier.weight(1f),
 
                         placeholder = {
                             Text("输入消息...")
@@ -304,14 +357,17 @@ fun ChatScreen(
 
                         maxLines = 5,
 
-                        enabled = !isLoading
+                        enabled =
+                            !isLoading
                     )
 
-                    Spacer(
-                        modifier = Modifier.width(8.dp)
+Spacer(
+                        modifier =
+                            Modifier.width(8.dp)
                     )
 
                     Button(
+
                         enabled =
                             input.isNotBlank() &&
                             !isLoading,
@@ -329,8 +385,10 @@ fun ChatScreen(
 
                                 messages =
                                     messages +
-                                        ChatMessage(text =
-                                                "请先打开「设置」，填写 API Key。",
+                                        ChatMessage(
+                                            text =
+                                                "请先打开「设置」，" +
+                                                "填写 API Key。",
                                             isUser = false
                                         )
 
@@ -346,12 +404,24 @@ fun ChatScreen(
                                         isUser = true
                                     )
 
+                            // 添加一个空的 AI 消息
+                            messages =
+                                messages +
+                                    ChatMessage(
+                                        text = "",
+                                        isUser = false
+                                    )
+
                             isLoading = true
 
                             scope.launch {
 
+                                val aiMessageIndex =
+                                    messages.lastIndex
+
                                 val result =
-                                    ApiClient.sendMessage(
+                                    ApiClient.sendMessageStream(
+
                                         baseUrl =
                                             settings.baseUrl,
 
@@ -363,31 +433,65 @@ fun ChatScreen(
 
                                         message =
                                             userText
-                                    )
+                                    ) { chunk ->
 
-                                result.fold(
+                                        if (aiMessageIndex >=
+                                            messages.size
+                                        ) {
 
-                                    onSuccess = { response ->
+return@sendMessageStream
+                                        }
 
-                                        messages =
-                                            messages +
-                                                ChatMessage(
-                                                    text = response,
-                                                    isUser = false
-                                                )
-                                    },
-
-                                    onFailure = { error ->
+                                        val current =
+                                            messages[
+                                                aiMessageIndex
+                                            ]
 
                                         messages =
-                                            messages +
-                                                ChatMessage(
-                                                    text =
-                                                        "请求失败：\n${error.message ?: "未知错误"}",
-                                                    isUser = false
-                                                )
+                                            messages
+                                                .toMutableList()
+                                                .also {
+
+                                                    it[
+                                                        aiMessageIndex
+                                                    ] =
+                                                        current.copy(
+                                                            text =
+                                                                current.text +
+                                                                chunk
+                                                        )
+                                                }
+
+                                        listState.animateScrollToItem(
+                                            messages.lastIndex
+                                        )
                                     }
-                                )
+
+                                result.onFailure { error ->
+
+                                    val current =
+                                        messages[
+                                            aiMessageIndex
+                                        ]
+
+                                    messages =
+                                        messages
+                                            .toMutableList()
+                                            .also {
+
+                                                it[
+                                                    aiMessageIndex
+                                                ] =
+                                                    current.copy(
+                                                        text =
+                                                            "请求失败：\n" +
+                                                            (
+                                                                error.message
+                                                                    ?: "未知错误"
+                                                            )
+                                                    )
+                                            }
+                                }
 
                                 isLoading = false
                             }
@@ -395,6 +499,7 @@ fun ChatScreen(
 
                         modifier =
                             Modifier.padding(top = 6.dp)
+
                     ) {
 
                         if (isLoading) {
@@ -414,7 +519,8 @@ fun MessageBubble(
     message: ChatMessage
 ) {
 
-    val horizontalArrangement: Arrangement.Horizontal
+    val horizontalArrangement:
+        Arrangement.Horizontal
 
     if (message.isUser) {
 
@@ -427,34 +533,47 @@ fun MessageBubble(
             Arrangement.Start
     }
 
-Row(
-        modifier = Modifier.fillMaxWidth(),
+    Row(
+
+        modifier =
+            Modifier.fillMaxWidth(),
 
         horizontalArrangement =
             horizontalArrangement
     ) {
 
         val bubbleColor =
+
             if (message.isUser) {
 
-                MaterialTheme.colorScheme.primary
+                MaterialTheme
+                    .colorScheme
+                    .primary
 
             } else {
 
-                MaterialTheme.colorScheme.surfaceVariant
+                MaterialTheme
+                    .colorScheme
+                    .surfaceVariant
             }
 
         val textColor =
+
             if (message.isUser) {
 
-                MaterialTheme.colorScheme.onPrimary
+                MaterialTheme
+                    .colorScheme
+                    .onPrimary
 
             } else {
 
-                MaterialTheme.colorScheme.onSurfaceVariant
+                MaterialTheme
+                    .colorScheme
+                    .onSurfaceVariant
             }
 
         Surface(
+
             modifier =
                 Modifier.fillMaxWidth(0.86f),
 
@@ -466,7 +585,13 @@ Row(
         ) {
 
             Text(
-                text = message.text,
+
+                text =
+                    if (message.text.isEmpty()) {
+                        "▌"
+                    } else {
+                        message.text
+                    },
 
                 modifier =
                     Modifier.padding(
@@ -478,7 +603,9 @@ Row(
                     textColor,
 
                 style =
-                    MaterialTheme.typography.bodyLarge
+                    MaterialTheme
+                        .typography
+                        .bodyLarge
             )
         }
     }
