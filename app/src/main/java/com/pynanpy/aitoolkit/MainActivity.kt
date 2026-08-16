@@ -3,7 +3,6 @@ package com.pynanpy.aitoolkit
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,6 +18,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -35,8 +35,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
 
 data class ChatMessage(
     val text: String,
@@ -59,7 +60,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun App() {
 
-    val context = LocalContext.current
+    val context = androidx.compose.ui.platform.LocalContext.current
 
     var showSettings by remember {
         mutableStateOf(false)
@@ -104,50 +105,46 @@ fun App() {
         return
     }
 
-    AnimatedContent(
-        targetState = showSettings,
-        label = "screen"
-    ) { isSettings ->
+    if (showSettings) {
 
-        if (isSettings) {
+        SettingsScreen(
+            initialBaseUrl = settings.baseUrl,
+            initialApiKey = settings.apiKey,
+            initialModel = settings.model,
 
-            SettingsScreen(
-                initialBaseUrl = settings.baseUrl,
-                initialApiKey = settings.apiKey,
-                initialModel = settings.model,
+            onSave = { baseUrl, apiKey, model ->
 
-                onSave = { baseUrl, apiKey, model ->
+                val newSettings = AppSettings(
+                    baseUrl = baseUrl,
+                    apiKey = apiKey,
+                    model = model
+                )
 
-                    val newSettings = AppSettings(
-                        baseUrl = baseUrl,
-                        apiKey = apiKey,
-                        model = model
-                    )
+                settings = newSettings
+                settingsToSave = newSettings
+                showSettings = false
+            },
 
-                    settings = newSettings
-                    settingsToSave = newSettings
-                    showSettings = false
-                },
+            onBack = {
+                showSettings = false
+            }
+        )
 
-                onBack = {
-                    showSettings = false
-                }
-            )
+    } else {
 
-        } else {
-
-            ChatScreen(
-                onOpenSettings = {
-                    showSettings = true
-                }
-            )
-        }
+        ChatScreen(
+            settings = settings,
+            onOpenSettings = {
+                showSettings = true
+            }
+        )
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatScreen(
+    settings: AppSettings,
     onOpenSettings: () -> Unit
 ) {
 
@@ -155,11 +152,15 @@ fun ChatScreen(
         mutableStateOf("")
     }
 
+    var isLoading by remember {
+        mutableStateOf(false)
+    }
+
     var messages by remember {
         mutableStateOf(
             listOf(
                 ChatMessage(
-                    text = "你好，我是 AI Toolkit。\n\n可以在右上角的设置中配置 AI API。",
+                    text = "你好，我是 AI Toolkit。\n\n可以在右上角的设置中配置 AI API，然后开始聊天。",
                     isUser = false
                 )
             )
@@ -167,6 +168,7 @@ fun ChatScreen(
     }
 
     val listState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
 
     LaunchedEffect(messages.size) {
         if (messages.isNotEmpty()) {
@@ -190,7 +192,7 @@ fun ChatScreen(
                         )
 
                         Text(
-                            text = "AI Assistant",
+                            text = settings.model,
                             style = MaterialTheme.typography.labelSmall
                         )
                     }
@@ -233,6 +235,41 @@ fun ChatScreen(
                         message = message
                     )
                 }
+
+                if (isLoading) {
+
+                    item {
+
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(
+                                    horizontal = 8.dp,
+                                    vertical = 6.dp
+                                ),
+                            verticalAlignment =
+                                Alignment.CenterVertically
+                        ) {
+
+                            CircularProgressIndicator(
+                                modifier = Modifier
+                                    .width(20.dp)
+                                    .padding(end = 4.dp),
+                                strokeWidth = 2.dp
+                            )
+
+                            Spacer(
+                                modifier = Modifier.width(8.dp)
+                            )
+
+                            Text(
+                                text = "AI 正在思考...",
+                                style =
+                                    MaterialTheme.typography.bodyMedium
+                            )
+                        }
+                    }
+                }
             }
 
             Surface(
@@ -262,9 +299,12 @@ fun ChatScreen(
                             Text("输入消息...")
                         },
 
-                        shape = RoundedCornerShape(24.dp),
+                        shape =
+                            RoundedCornerShape(24.dp),
 
-                        maxLines = 5
+                        maxLines = 5,
+
+                        enabled = !isLoading
                     )
 
                     Spacer(
@@ -272,29 +312,84 @@ fun ChatScreen(
                     )
 
                     Button(
+                        enabled =
+                            input.isNotBlank() &&
+                            !isLoading,
+
                         onClick = {
 
-                            if (input.isNotBlank()) {
+                            val userText =
+                                input.trim()
 
-                                val userText =
-                                    input.trim()
+                            if (userText.isEmpty()) {
+                                return@Button
+                            }
 
-                                messages =
-                                    messages +
-                                        ChatMessage(
-                                            text = userText,
-                                            isUser = true
-                                        )
+                            if (settings.apiKey.isBlank()) {
 
                                 messages =
                                     messages +
-                                        ChatMessage(
-                                            text =
-                                                "这是测试回复。\n\n下一步我们会接入真正的 AI API。",
+                                        ChatMessage(text =
+                                                "请先打开「设置」，填写 API Key。",
                                             isUser = false
                                         )
 
-                                input = ""
+                                return@Button
+                            }
+
+                            input = ""
+
+                            messages =
+                                messages +
+                                    ChatMessage(
+                                        text = userText,
+                                        isUser = true
+                                    )
+
+                            isLoading = true
+
+                            scope.launch {
+
+                                val result =
+                                    ApiClient.sendMessage(
+                                        baseUrl =
+                                            settings.baseUrl,
+
+                                        apiKey =
+                                            settings.apiKey,
+
+                                        model =
+                                            settings.model,
+
+                                        message =
+                                            userText
+                                    )
+
+                                result.fold(
+
+                                    onSuccess = { response ->
+
+                                        messages =
+                                            messages +
+                                                ChatMessage(
+                                                    text = response,
+                                                    isUser = false
+                                                )
+                                    },
+
+                                    onFailure = { error ->
+
+                                        messages =
+                                            messages +
+                                                ChatMessage(
+                                                    text =
+                                                        "请求失败：\n${error.message ?: "未知错误"}",
+                                                    isUser = false
+                                                )
+                                    }
+                                )
+
+                                isLoading = false
                             }
                         },
 
@@ -302,7 +397,11 @@ fun ChatScreen(
                             Modifier.padding(top = 6.dp)
                     ) {
 
-                        Text("发送")
+                        if (isLoading) {
+                            Text("生成中")
+                        } else {
+                            Text("发送")
+                        }
                     }
                 }
             }
@@ -328,7 +427,7 @@ fun MessageBubble(
             Arrangement.Start
     }
 
-    Row(
+Row(
         modifier = Modifier.fillMaxWidth(),
 
         horizontalArrangement =
@@ -375,7 +474,8 @@ fun MessageBubble(
                         vertical = 12.dp
                     ),
 
-                color = textColor,
+                color =
+                    textColor,
 
                 style =
                     MaterialTheme.typography.bodyLarge
