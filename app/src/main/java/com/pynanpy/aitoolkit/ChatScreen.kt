@@ -444,16 +444,14 @@ LazyColumn(
 
             onStop = {
 
-                currentJob?.cancel()
+    ApiClient.cancelCurrentRequest()
 
-                currentJob = null
+    currentJob?.cancel()
 
-                isLoading = false
-            }
-        )
-    }
+    currentJob = null
+
+    isLoading = false
 }
-
 
 /*
  * 输入区域
