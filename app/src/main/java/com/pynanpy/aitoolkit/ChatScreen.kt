@@ -1,5 +1,9 @@
 package com.pynanpy.aitoolkit
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.slideInVertically
@@ -8,6 +12,7 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -16,13 +21,17 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+
 import androidx.compose.foundation.shape.RoundedCornerShape
+
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -30,6 +39,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -37,17 +47,24 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalContext
+
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+
 
 @Composable
 fun ChatScreen(
@@ -66,12 +83,23 @@ fun ChatScreen(
         mutableStateOf(false)
     }
 
+    var currentJob by remember {
+        mutableStateOf<Job?>(null)
+    }
+
     val listState =
         rememberLazyListState()
 
     val scope =
         rememberCoroutineScope()
 
+    val context =
+        LocalContext.current
+
+
+    /*
+     * 自动滚动到底部
+     */
     LaunchedEffect(
         conversation.messages.size
     ) {
@@ -85,6 +113,7 @@ fun ChatScreen(
             )
         }
     }
+
 
     Column(
         modifier =
@@ -100,14 +129,23 @@ fun ChatScreen(
             model =
                 settings.model,
 
-            onNewConversation =
-                onNewConversation,
+            onNewConversation = {
 
-            onOpenSettings =
-                onOpenSettings
+                if (!isLoading) {
+                    onNewConversation()
+                }
+            },
+
+            onOpenSettings = {
+
+                if (!isLoading) {
+                    onOpenSettings()
+                }
+            }
         )
 
-        LazyColumn(
+
+LazyColumn(
 
             state =
                 listState,
@@ -125,262 +163,631 @@ fun ChatScreen(
         ) {
 
             items(
+
                 items =
                     conversation.messages,
 
                 key = {
                     it.id
                 }
+
             ) { message ->
 
                 MessageBubble(
-                    message = message
+
+                    message =
+                        message,
+
+                    onCopy = {
+
+                        copyToClipboard(
+                            context,
+                            message.text
+                        )
+                    },
+
+                    onRegenerate = {
+
+                        if (
+                            !isLoading &&
+                            !message.isUser
+                        ) {
+
+                            regenerateMessage(
+
+                                conversation =
+                                    conversation,
+
+                                message =
+                                    message,
+
+                                settings =
+                                    settings,
+
+                                onConversationChanged =
+                                    onConversationChanged,
+
+                                setLoading = {
+                                    isLoading = it
+                                },
+
+                                setJob = {
+                                    currentJob = it
+                                },
+
+                                scope =
+                                    scope
+                            )
+                        }
+                    }
                 )
             }
+
 
             if (isLoading) {
 
                 item {
+
                     ThinkingIndicator()
                 }
             }
         }
 
-Surface(
-            modifier =
-                Modifier.fillMaxWidth(),
 
-            tonalElevation = 3.dp
-        ) {
+        InputBar(
 
-            Row(
+            input =
+                input,
 
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(12.dp),
+            isLoading =
+                isLoading,
 
-                verticalAlignment =
-                    Alignment.Bottom
-            ) {
+            onInputChanged = {
+                input = it
+            },
 
-                OutlinedTextField(
+            onSend = {
 
-                    value =
-                        input,
+                val userText =
+                    input.trim()
 
-                    onValueChange = {
-                        input = it
-                    },
+                if (
+                    userText.isEmpty()
+                ) {
+                    return@InputBar
+                }
 
-                    modifier =
-                        Modifier.weight(1f),
-
-                    placeholder = {
-                        Text("输入消息...")
-                    },
-
-                    shape =
-                        RoundedCornerShape(24.dp),
-
-                    maxLines = 5,
-
-                    enabled =
-                        !isLoading
-                )
-
-                Spacer(
-                    modifier =
-                        Modifier.width(8.dp)
-                )
-
-                Button(
-
-                    enabled =
-                        input.isNotBlank() &&
-                            !isLoading,
-
-                    onClick = {
-
-                        val userText =
-                            input.trim()
-
-                        if (
-                            userText.isEmpty()
-                        ) {
-                            return@Button
-                        }
-
-                        if (
-                            settings.apiKey.isBlank()
-                        ) {
-
-                            val errorMessage =
-                                ChatMessage(
-                                    text =
-                                        "请先打开「设置」，填写 API Key。",
-                                    isUser = false
-                                )
-
-                            onConversationChanged(
-                                conversation.copy(
-                                    messages =
-                                        conversation.messages +
-                                            errorMessage,
-
-                                    updatedAt =
-                                        System.currentTimeMillis()
-                                )
-                            )
-
-                            return@Button
-                        }
-
-                        input = ""
-
-                        val userMessage =
-                            ChatMessage(
-                                text =
-                                    userText,
-
-                                isUser =
-                                    true
-                            )
-
-                        val conversationWithUser =
-                            conversation.copy(
-                                messages =
-                                    conversation.messages +
-                                        userMessage,
-
-                                title =
-                                    if (
-                                        conversation.messages.isEmpty()
-                                    ) {
-                                        createTitle(
-                                            userText
-                                        )
-                                    } else {
-                                        conversation.title
-                                    },
-
-                                updatedAt =
-                                    System.currentTimeMillis()
-                            )
-
-                        val aiMessage =
-                            ChatMessage(
-                                text = "",
-                                isUser = false
-                            )
-
-                        val conversationWithPlaceholder =
-                            conversationWithUser.copy(
-                                messages =
-                                    conversationWithUser.messages +
-                                        aiMessage,
-
-                                updatedAt =
-                                    System.currentTimeMillis()
-                            )
-
-                        onConversationChanged(
-                            conversationWithPlaceholder
-                        )
-
-                        isLoading = true
-
-                        scope.launch {
-
-                            val result =
-                                ApiClient.sendMessageStream(
-
-                                    baseUrl =
-                                        settings.baseUrl,
-
-                                    apiKey =
-                                        settings.apiKey,
-
-                                    model =
-                                        settings.model,
-
-                                    messages =
-                                        conversationWithUser.messages,
-
-                                    onChunk = { chunk ->
-
-val updated =
-                                            appendToMessage(
-                                                conversationWithPlaceholder,
-                                                aiMessage.id,
-                                                chunk
-                                            )
-
-                                        onConversationChanged(
-                                            updated
-                                        )
-                                    }
-                                )
-
-                            result.onFailure { error ->
-
-                                val errorText =
-                                    "请求失败：\n" +
-                                        (
-                                            error.message
-                                                ?: "未知错误"
-                                        )
-
-                                val failed =
-                                    replaceMessage(
-                                        conversationWithPlaceholder,
-                                        aiMessage.id,
-                                        errorText
-                                    )
-
-                                onConversationChanged(
-                                    failed
-                                )
-                            }
-
-                            isLoading = false
-                        }
-                    }
+                if (
+                    settings.apiKey.isBlank()
                 ) {
 
+                    val errorMessage =
+                        ChatMessage(
+                            text =
+                                "请先打开「设置」，填写 API Key。",
+                            isUser =
+                                false
+                        )
+
+                    onConversationChanged(
+
+                        conversation.copy(
+
+                            messages =
+                                conversation.messages +
+                                    errorMessage,
+
+                            updatedAt =
+                                System.currentTimeMillis()
+                        )
+                    )
+
+                    return@InputBar
+                }
+
+
+                input = ""
+
+
+                val userMessage =
+                    ChatMessage(
+                        text =
+                            userText,
+
+                        isUser =
+                            true
+                    )
+
+
+                val assistantMessage =
+                    ChatMessage(
+                        text =
+                            "",
+
+                        isUser =
+                            false
+                    )
+
+   val conversationWithUser =
+
+                    conversation.copy(
+
+                        messages =
+                            conversation.messages +
+                                userMessage,
+
+                        title =
+                            if (
+                                conversation.messages.isEmpty()
+                            ) {
+
+                                createTitle(
+                                    userText
+                                )
+
+                            } else {
+
+                                conversation.title
+                            },
+
+                        updatedAt =
+                            System.currentTimeMillis()
+                    )
+
+
+                val conversationWithAssistant =
+
+                    conversationWithUser.copy(
+
+                        messages =
+                            conversationWithUser.messages +
+                                assistantMessage,
+
+                        updatedAt =
+                            System.currentTimeMillis()
+                    )
+
+
+                onConversationChanged(
+                    conversationWithAssistant
+                )
+
+
+                isLoading = true
+
+
+                currentJob =
+                    scope.launch {
+
+                        var generatedText =
+                            ""
+
+
+                        val result =
+                            ApiClient.sendMessageStream(
+
+                                baseUrl =
+                                    settings.baseUrl,
+
+                                apiKey =
+                                    settings.apiKey,
+
+                                model =
+                                    settings.model,
+
+                                messages =
+                                    conversationWithUser.messages,
+
+                                onChunk = { chunk ->
+
+                                    generatedText +=
+                                        chunk
+
+
+                                    val updated =
+                                        replaceMessage(
+
+                                            conversationWithAssistant,
+
+                                            assistantMessage.id,
+
+                                            generatedText
+                                        )
+
+
+                                    onConversationChanged(
+                                        updated
+                                    )
+                                }
+                            )
+
+
+                        result.onFailure { error ->
+
+                            val errorText =
+
+                                if (
+                                    error.message
+                                        .isNullOrBlank()
+                                ) {
+
+                                    "请求失败：未知错误"
+
+                                } else {
+
+                                    "请求失败：${error.message}"
+                                }
+
+
+                            val failed =
+                                replaceMessage(
+
+                                    conversationWithAssistant,
+
+                                    assistantMessage.id,
+
+                                    errorText
+                                )
+
+
+                            onConversationChanged(
+                                failed
+                            )
+                        }
+
+
+                        isLoading = false
+
+                        currentJob = null
+                    }
+            },
+
+            onStop = {
+
+                currentJob?.cancel()
+
+                currentJob = null
+
+                isLoading = false
+            }
+        )
+    }
+}
+
+
+/*
+ * 输入区域
+ */
+@Composable
+private fun InputBar(
+    input: String,
+    isLoading: Boolean,
+    onInputChanged: (String) -> Unit,
+    onSend: () -> Unit,
+    onStop: () -> Unit
+) {
+
+    Surface(
+
+        modifier =
+            Modifier.fillMaxWidth(),
+
+        tonalElevation =
+            3.dp
+    ) {
+
+        Row(
+
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(12.dp),
+
+            verticalAlignment =
+                Alignment.Bottom
+        ) {
+
+            OutlinedTextField(
+
+                value =
+                    input,
+
+                onValueChange =
+                    onInputChanged,
+
+                modifier =
+                    Modifier.weight(1f),
+
+                placeholder = {
+
+                    Text(
+                        "输入消息..."
+                    )
+                },
+
+                shape =
+                    RoundedCornerShape(24.dp),
+
+                maxLines =
+                    5,
+
+                enabled =
+                    !isLoading
+            )
+
+
+            Spacer(
+                modifier =
+                    Modifier.width(8.dp)
+            )
+
+
+            Button(
+
+                enabled =
                     if (isLoading) {
-                        Text("生成中")
+                        true
                     } else {
-                        Text("发送")
+                        input.isNotBlank()
+                    },
+
+                onClick = {
+
+                    if (isLoading) {
+
+                        onStop()
+
+                    } else {
+
+                        onSend()
                     }
                 }
+
+            ) {
+
+                Text(
+
+                    if (isLoading) {
+                        "停止"
+                    } else {
+                        "发送"
+                    }
+                )
             }
         }
     }
 }
 
+
+/*
+ * 重新生成 AI 回复
+ */
+private fun regenerateMessage(
+
+    conversation: ChatConversation,
+
+    message: ChatMessage,
+
+    settings: AppSettings,
+
+    onConversationChanged:
+        (ChatConversation) -> Unit,
+
+    setLoading:
+        (Boolean) -> Unit,
+
+    setJob:
+        (Job?) -> Unit,
+
+    scope:
+        kotlinx.coroutines.CoroutineScope
+) {
+
+    val assistantIndex =
+        conversation.messages
+            .indexOfFirst {
+                it.id == message.id
+            }
+
+ if (
+        assistantIndex <= 0
+    ) {
+        return
+    }
+
+
+    val userMessage =
+        conversation.messages
+            .getOrNull(
+                assistantIndex - 1
+            )
+            ?: return
+
+
+    if (
+        !userMessage.isUser
+    ) {
+        return
+    }
+
+
+    /*
+     * 保留到这个用户问题之前的全部历史。
+     */
+    val previousMessages =
+        conversation.messages
+            .take(
+                assistantIndex - 1
+            )
+
+
+    val newAssistantMessage =
+        ChatMessage(
+
+            text =
+                "",
+
+            isUser =
+                false
+        )
+
+
+    val newConversation =
+
+        conversation.copy(
+
+            messages =
+                previousMessages +
+                    userMessage +
+                    newAssistantMessage,
+
+            updatedAt =
+                System.currentTimeMillis()
+        )
+
+
+    onConversationChanged(
+        newConversation
+    )
+
+
+    setLoading(true)
+
+
+    val job =
+        scope.launch {
+
+            var generatedText =
+                ""
+
+
+            val result =
+                ApiClient.sendMessageStream(
+
+                    baseUrl =
+                        settings.baseUrl,
+
+                    apiKey =
+                        settings.apiKey,
+
+                    model =
+                        settings.model,
+
+                    messages =
+                        previousMessages +
+                            userMessage,
+
+                    onChunk = { chunk ->
+
+                        generatedText +=
+                            chunk
+
+
+                        val updated =
+                            replaceMessage(
+
+                                newConversation,
+
+                                newAssistantMessage.id,
+
+                                generatedText
+                            )
+
+
+                        onConversationChanged(
+                            updated
+                        )
+                    }
+                )
+
+
+            result.onFailure { error ->
+
+                val errorText =
+
+                    if (
+                        error.message
+                            .isNullOrBlank()
+                    ) {
+
+                        "请求失败：未知错误"
+
+                    } else {
+
+                        "请求失败：${error.message}"
+                    }
+
+
+                val failed =
+                    replaceMessage(
+
+                        newConversation,
+
+                        newAssistantMessage.id,
+
+                        errorText
+                    )
+
+
+                onConversationChanged(
+                    failed
+                )
+            }
+
+
+            setLoading(false)
+
+            setJob(null)
+        }
+
+
+    setJob(job)
+}
+
+
+/*
+ * 自动生成对话标题
+ */
 private fun createTitle(
     text: String
 ): String {
 
     val clean =
         text
-            .replace("\n", " ")
+            .replace(
+                "\n",
+                " "
+            )
             .trim()
+
 
     return if (
         clean.length <= 18
     ) {
+
         clean
+
     } else {
+
         clean.take(18) + "…"
     }
 }
 
-private fun appendToMessage(
-    conversation: ChatConversation,
-    messageId: String,
-    chunk: String
+
+/*
+ * 替换指定消息
+ */
+private fun replaceMessage(
+
+    conversation:
+        ChatConversation,
+
+    messageId:
+        String,
+
+    text:
+        String
+
 ): ChatConversation {
 
     return conversation.copy(
@@ -394,10 +801,11 @@ private fun appendToMessage(
 
                     it.copy(
                         text =
-                            it.text + chunk
+                            text
                     )
 
                 } else {
+
                     it
                 }
             },
@@ -407,43 +815,67 @@ private fun appendToMessage(
     )
 }
 
-private fun replaceMessage(
-    conversation: ChatConversation,
-    messageId: String,
-    text: String
-): ChatConversation {
 
-    return conversation.copy(
+/*
+ * 复制文本
+ */
+private fun copyToClipboard(
 
-        messages =
-            conversation.messages.map {
+    context:
+        Context,
 
-                if (
-                    it.id == messageId
-                ) {
-                    it.copy(
-                        text = text
-                    )
-                } else {
-                    it
-                }
-            },
+    text:
+        String
+) {
 
-        updatedAt =
-            System.currentTimeMillis()
+    if (
+        text.isBlank()
+    ) {
+        return
+    }
+
+
+    val clipboard =
+        context.getSystemService(
+            Context.CLIPBOARD_SERVICE
+        ) as ClipboardManager
+
+
+    clipboard.setPrimaryClip(
+
+        ClipData.newPlainText(
+
+            "AI 回复",
+
+            text
+        )
     )
 }
 
+
+/*
+ * 顶部栏
+ */
 @Composable
 private fun ChatTopBar(
-    title: String,
-    model: String,
-    onNewConversation: () -> Unit,
-    onOpenSettings: () -> Unit
+
+    title:
+        String,
+
+    model:
+        String,
+
+    onNewConversation:
+        () -> Unit,
+
+    onOpenSettings:
+        () -> Unit
 ) {
 
     Surface(
-        tonalElevation = 2.dp
+
+        tonalElevation =
+            2.dp
     ) {
 
         Row(
@@ -461,17 +893,22 @@ private fun ChatTopBar(
         ) {
 
             Column(
+
                 modifier =
                     Modifier.weight(1f)
             ) {
 
                 Text(
+
                     text =
                         if (
                             title.isBlank()
                         ) {
+
                             "新对话"
+
                         } else {
+
                             title
                         },
 
@@ -484,7 +921,9 @@ private fun ChatTopBar(
                         FontWeight.SemiBold
                 )
 
+
                 Text(
+
                     text =
                         model,
 
@@ -495,33 +934,52 @@ private fun ChatTopBar(
                 )
             }
 
-            TextButton(
-                onClick =
-                    onNewConversation
-            ) {
-                Text("新对话")
-            }
 
             TextButton(
+
+                onClick =
+                    onNewConversation
+
+            ) {
+
+                Text(
+                    "新对话"
+                )
+            }
+
+
+            TextButton(
+
                 onClick =
                     onOpenSettings
+
             ) {
-                Text("设置")
+
+                Text(
+                    "设置"
+                )
             }
         }
     }
 }
 
+
+/*
+ * 思考动画
+ */
 @Composable
 private fun ThinkingIndicator() {
 
     val transition =
         rememberInfiniteTransition(
-            label = "thinking"
+            label =
+                "thinking"
         )
+
 
     val alpha by
         transition.animateFloat(
+
             initialValue =
                 0.35f,
 
@@ -530,8 +988,11 @@ private fun ThinkingIndicator() {
 
             animationSpec =
                 infiniteRepeatable(
+
                     animation =
-                        tween(700),
+                        tween(
+                            700
+                        ),
 
                     repeatMode =
                         RepeatMode.Reverse
@@ -540,6 +1001,7 @@ private fun ThinkingIndicator() {
             label =
                 "thinkingAlpha"
         )
+
 
     Row(
 
@@ -555,27 +1017,37 @@ private fun ThinkingIndicator() {
             Alignment.CenterVertically
     ) {
 
-        CircularProgressIndicator(
+CircularProgressIndicator(
 
             modifier =
-                Modifier.width(20.dp),
+                Modifier.width(
+                    20.dp
+                ),
 
             strokeWidth =
                 2.dp
         )
 
+
         Spacer(
+
             modifier =
-                Modifier.width(8.dp)
+                Modifier.width(
+                    8.dp
+                )
         )
 
+
         Text(
+
             text =
                 "AI 正在思考...",
 
             modifier =
                 Modifier.graphicsLayer {
-                    this.alpha = alpha
+
+                    this.alpha =
+                        alpha
                 },
 
             style =
@@ -586,14 +1058,27 @@ private fun ThinkingIndicator() {
     }
 }
 
+
+/*
+ * 消息气泡
+ */
 @Composable
 private fun MessageBubble(
-    message: ChatMessage
+
+    message:
+        ChatMessage,
+
+    onCopy:
+        () -> Unit,
+
+    onRegenerate:
+        () -> Unit
 ) {
 
     AnimatedVisibility(
 
-        visible = true,
+        visible =
+            true,
 
         enter =
             fadeIn(
@@ -601,6 +1086,7 @@ private fun MessageBubble(
                     tween(180)
             ) +
                 slideInVertically(
+
                     animationSpec =
                         tween(240),
 
@@ -610,105 +1096,184 @@ private fun MessageBubble(
                 )
     ) {
 
-        Row(
+        Column(
 
             modifier =
-                Modifier.fillMaxWidth(),
-
-            horizontalArrangement =
-                if (message.isUser) {
-                    Arrangement.End
-                } else {
-                    Arrangement.Start
-                }
+                Modifier.fillMaxWidth()
         ) {
 
-            val bubbleColor =
-                if (message.isUser) {
-
-                    MaterialTheme
-                        .colorScheme
-                        .primary
-
-                } else {
-
-                    MaterialTheme
-                        .colorScheme
-                        .surfaceVariant
-                }
-
-            val textColor =
-                if (message.isUser) {
-
-                    MaterialTheme
-                        .colorScheme
-                        .onPrimary
-
-                } else {
-
-                    MaterialTheme
-                        .colorScheme
-                        .onSurfaceVariant
-                }
-
-            Surface(
+            Row(
 
                 modifier =
-                    Modifier.fillMaxWidth(
-                        0.90f
-                    ),
+                    Modifier.fillMaxWidth(),
 
-                shape =
-                    RoundedCornerShape(18.dp),
+                horizontalArrangement =
 
-                color =
-                    bubbleColor
+                    if (
+                        message.isUser
+                    ) {
+
+                        Arrangement.End
+
+                    } else {
+
+                        Arrangement.Start
+                    }
             ) {
 
-                if (message.isUser) {
+                val bubbleColor =
 
-                    Text(
-                        text =
-                            message.text,
+                    if (
+                        message.isUser
+                    ) {
 
-                        modifier =
-                            Modifier.padding(
-                                horizontal = 16.dp,
-                                vertical = 12.dp
-                            ),
+                        MaterialTheme
+                            .colorScheme
+                            .primary
 
-                        color =
-                            textColor,
+                    } else {
 
-                        style =
-                            MaterialTheme
-                                .typography
-                                .bodyLarge
-                    )
+                        MaterialTheme
+                            .colorScheme
+                            .surfaceVariant
+                    }
 
-                } else {
 
-                    MarkdownContent(
-                        text =
-                            message.text,
+                val textColor =
 
-                        textColor =
-                            textColor
-                    )
+                    if (
+                        message.isUser
+                    ) {
+
+                        MaterialTheme
+                            .colorScheme
+                            .onPrimary
+
+                    } else {
+
+                        MaterialTheme
+                            .colorScheme
+                            .onSurfaceVariant
+                    }
+
+Surface(
+
+                    modifier =
+                        Modifier.fillMaxWidth(
+                            0.90f
+                        ),
+
+                    shape =
+                        RoundedCornerShape(
+                            18.dp
+                        ),
+
+                    color =
+                        bubbleColor
+                ) {
+
+                    if (
+                        message.isUser
+                    ) {
+
+                        Text(
+
+                            text =
+                                message.text,
+
+                            modifier =
+                                Modifier.padding(
+                                    horizontal = 16.dp,
+                                    vertical = 12.dp
+                                ),
+
+                            color =
+                                textColor,
+
+                            style =
+                                MaterialTheme
+                                    .typography
+                                    .bodyLarge
+                        )
+
+                    } else {
+
+                        MarkdownContent(
+
+                            text =
+                                message.text,
+
+                            textColor =
+                                textColor
+                        )
+                    }
+                }
+            }
+
+
+            /*
+             * AI 回复操作按钮
+             */
+            if (
+                !message.isUser &&
+                message.text.isNotBlank()
+            ) {
+
+                Row(
+
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(
+                                start = 8.dp
+                            )
+                ) {
+
+                    TextButton(
+                        onClick =
+                            onCopy
+                    ) {
+
+                        Text(
+                            "复制"
+                        )
+                    }
+
+
+                    TextButton(
+                        onClick =
+                            onRegenerate
+                    ) {
+
+                        Text(
+                            "重新生成"
+                        )
+                    }
                 }
             }
         }
     }
 }
 
+
+/*
+ * Markdown 内容
+ */
 @Composable
 private fun MarkdownContent(
-    text: String,
-    textColor: Color
+
+    text:
+        String,
+
+    textColor:
+        Color
 ) {
 
     val lines =
-        text.split("\n")
+        text.split(
+            "\n"
+        )
+
 
     Column(
 
@@ -719,7 +1284,9 @@ private fun MarkdownContent(
             ),
 
         verticalArrangement =
-            Arrangement.spacedBy(6.dp)
+            Arrangement.spacedBy(
+                6.dp
+            )
     ) {
 
         var inCodeBlock =
@@ -728,14 +1295,24 @@ private fun MarkdownContent(
         var codeText =
             ""
 
-        for (line in lines) {
 
+        for (
+            line in lines
+        ) {
+
+            /*
+             * 代码块
+             */
             if (
                 line.trim()
-                    .startsWith("```")
+                    .startsWith(
+                        "```"
+                    )
             ) {
 
-                if (!inCodeBlock) {
+                if (
+                    !inCodeBlock
+                ) {
 
                     inCodeBlock =
                         true
@@ -757,7 +1334,10 @@ private fun MarkdownContent(
                 continue
             }
 
-            if (inCodeBlock) {
+
+            if (
+                inCodeBlock
+            ) {
 
                 codeText +=
                     line + "\n"
@@ -765,11 +1345,18 @@ private fun MarkdownContent(
                 continue
             }
 
+
             when {
 
-                line.startsWith("### ") -> {
+                /*
+                 * ### 标题
+                 */
+                line.startsWith(
+                    "### "
+                ) -> {
 
                     Text(
+
                         text =
                             line.removePrefix(
                                 "### "
@@ -788,9 +1375,17 @@ private fun MarkdownContent(
                     )
                 }
 
-                line.startsWith("## ") -> {
+
+                /*
+                 * ## 标题
+                 */
+
+line.startsWith(
+                    "## "
+                ) -> {
 
                     Text(
+
                         text =
                             line.removePrefix(
                                 "## "
@@ -809,9 +1404,16 @@ private fun MarkdownContent(
                     )
                 }
 
-                line.startsWith("# ") -> {
+
+                /*
+                 * # 标题
+                 */
+                line.startsWith(
+                    "# "
+                ) -> {
 
                     Text(
+
                         text =
                             line.removePrefix(
                                 "# "
@@ -830,12 +1432,21 @@ private fun MarkdownContent(
                     )
                 }
 
-                line.startsWith("- ") ||
-                    line.startsWith("* ") -> {
+
+                /*
+                 * 无序列表
+                 */
+                line.startsWith(
+                    "- "
+                ) ||
+                    line.startsWith(
+                        "* "
+                    ) -> {
 
                     Row {
 
                         Text(
+
                             text =
                                 "•",
 
@@ -843,14 +1454,22 @@ private fun MarkdownContent(
                                 textColor
                         )
 
+
                         Spacer(
+
                             modifier =
-                                Modifier.width(8.dp)
+                                Modifier.width(
+                                    8.dp
+                                )
                         )
 
+
                         MarkdownText(
+
                             text =
-                                line.drop(2),
+                                line.drop(
+                                    2
+                                ),
 
                             color =
                                 textColor
@@ -858,17 +1477,29 @@ private fun MarkdownContent(
                     }
                 }
 
+
+                /*
+                 * 空行
+                 */
                 line.isBlank() -> {
 
-Spacer(
+                    Spacer(
+
                         modifier =
-                            Modifier.width(1.dp)
+                            Modifier.height(
+                                1.dp
+                            )
                     )
                 }
 
+
+                /*
+                 * 普通文本
+                 */
                 else -> {
 
                     MarkdownText(
+
                         text =
                             line,
 
@@ -879,7 +1510,11 @@ Spacer(
             }
         }
 
-        if (
+
+        /*
+         * 未闭合代码块
+         */
+if (
             inCodeBlock &&
             codeText.isNotEmpty()
         ) {
@@ -892,10 +1527,18 @@ Spacer(
     }
 }
 
+
+/*
+ * Markdown 行内格式
+ */
 @Composable
 private fun MarkdownText(
-    text: String,
-    color: Color
+
+    text:
+        String,
+
+    color:
+        Color
 ) {
 
     val annotated =
@@ -904,69 +1547,109 @@ private fun MarkdownText(
             var position =
                 0
 
+
             while (
                 position < text.length
             ) {
 
+                /*
+                 * **粗体**
+                 */
                 if (
+
                     position + 1 <
                         text.length &&
-                    text[position] == '*' &&
-                    text[position + 1] == '*'
+
+                    text[position] ==
+                        '*' &&
+
+                    text[position + 1] ==
+                        '*'
                 ) {
 
                     val end =
                         text.indexOf(
+
                             "**",
+
                             position + 2
                         )
 
-                    if (end >= 0) {
+
+                    if (
+                        end >= 0
+                    ) {
 
                         val content =
                             text.substring(
+
                                 position + 2,
+
                                 end
                             )
 
+
                         pushStyle(
+
                             SpanStyle(
+
                                 fontWeight =
                                     FontWeight.Bold
                             )
                         )
 
-                        append(content)
+
+                        append(
+                            content
+                        )
+
 
                         pop()
 
+
                         position =
                             end + 2
+
 
                         continue
                     }
                 }
 
+
+                /*
+                 * `行内代码`
+                 */
                 if (
-                    text[position] == '`'
+                    text[position] ==
+                        '`'
                 ) {
 
                     val end =
                         text.indexOf(
+
                             "`",
+
                             position + 1
                         )
 
-                    if (end >= 0) {
+
+                    if (
+                        end >= 0
+                    ) {
 
                         val content =
                             text.substring(
+
                                 position + 1,
+
                                 end
                             )
 
+
                         pushStyle(
+
                             SpanStyle(
+
                                 fontFamily =
                                     FontFamily.Monospace,
 
@@ -975,26 +1658,35 @@ private fun MarkdownText(
                             )
                         )
 
-                        append(content)
+
+                        append(
+                            content
+                        )
+
 
                         pop()
 
+
                         position =
                             end + 1
+
 
                         continue
                     }
                 }
 
-                append(
+append(
                     text[position]
                 )
+
 
                 position++
             }
         }
 
+
     Text(
+
         text =
             annotated,
 
@@ -1008,9 +1700,15 @@ private fun MarkdownText(
     )
 }
 
+
+/*
+ * 代码块
+ */
 @Composable
 private fun CodeBlock(
-    code: String
+
+    code:
+        String
 ) {
 
     Surface(
@@ -1019,7 +1717,9 @@ private fun CodeBlock(
             Modifier.fillMaxWidth(),
 
         shape =
-            RoundedCornerShape(12.dp),
+            RoundedCornerShape(
+                12.dp
+            ),
 
         tonalElevation =
             4.dp
@@ -1035,10 +1735,13 @@ private fun CodeBlock(
                             .colorScheme
                             .surface
                     )
-                    .padding(14.dp)
+                    .padding(
+                        14.dp
+                    )
         ) {
 
             Text(
+
                 text =
                     code.trimEnd(),
 
