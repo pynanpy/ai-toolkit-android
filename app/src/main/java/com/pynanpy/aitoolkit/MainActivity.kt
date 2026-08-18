@@ -11,6 +11,7 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.slideInVertically
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -43,9 +44,16 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.launch
 
@@ -115,9 +123,9 @@ fun App() {
         return
     }
 
-if (showSettings) {
+    if (showSettings) {
 
-        SettingsScreen(
+SettingsScreen(
             initialBaseUrl = settings.baseUrl,
             initialApiKey = settings.apiKey,
             initialModel = settings.model,
@@ -169,9 +177,7 @@ fun ChatScreen(
     var messages by remember {
 
         mutableStateOf(
-
             listOf(
-
                 ChatMessage(
                     text =
                         "你好，我是 AI Toolkit。\n\n" +
@@ -257,31 +263,27 @@ fun ChatScreen(
 
                 verticalArrangement =
                     Arrangement.spacedBy(10.dp)
-
             ) {
 
                 itemsIndexed(messages) { index, message ->
 
                     MessageBubble(
                         message = message,
-                        animate = index == messages.lastIndex
+                        animate =
+                            index == messages.lastIndex
                     )
                 }
 
                 if (isLoading) {
 
                     item {
-
                         ThinkingIndicator()
                     }
                 }
             }
 
 Surface(
-
-                modifier =
-                    Modifier.fillMaxWidth(),
-
+                modifier = Modifier.fillMaxWidth(),
                 tonalElevation = 3.dp
             ) {
 
@@ -393,10 +395,7 @@ Surface(
 
                                     ) { chunk ->
 
-                                        if (
-                                            aiIndex <
-                                            messages.size
-                                        ) {
+                                        if (aiIndex < messages.size) {
 
                                             val current =
                                                 messages[aiIndex]
@@ -477,10 +476,8 @@ fun ThinkingIndicator() {
 
         animationSpec =
             infiniteRepeatable(
-                animation =
-                    tween(700),
-                repeatMode =
-                    RepeatMode.Reverse
+                animation = tween(700),
+                repeatMode = RepeatMode.Reverse
             ),
 
         label = "thinkingAlpha"
@@ -501,16 +498,12 @@ fun ThinkingIndicator() {
     ) {
 
         CircularProgressIndicator(
-
-            modifier =
-                Modifier.width(20.dp),
-
+            modifier = Modifier.width(20.dp),
             strokeWidth = 2.dp
         )
 
         Spacer(
-            modifier =
-                Modifier.width(8.dp)
+            modifier = Modifier.width(8.dp)
         )
 
         Text(
@@ -548,12 +541,10 @@ fun MessageBubble(
             if (animate) {
 
                 fadeIn(
-                    animationSpec =
-                        tween(220)
+                    animationSpec = tween(220)
                 ) +
                     slideInVertically(
-                        animationSpec =
-                            tween(280),
+                        animationSpec = tween(280),
                         initialOffsetY = {
                             it / 5
                         }
@@ -562,8 +553,7 @@ fun MessageBubble(
             } else {
 
                 fadeIn(
-                    animationSpec =
-                        tween(120)
+                    animationSpec = tween(120)
                 )
             }
     ) {
@@ -579,36 +569,22 @@ fun MessageBubble(
 
             val bubbleColor =
                 if (message.isUser) {
-
-                    MaterialTheme
-                        .colorScheme
-                        .primary
-
+                    MaterialTheme.colorScheme.primary
                 } else {
-
-                    MaterialTheme
-                        .colorScheme
-                        .surfaceVariant
+                    MaterialTheme.colorScheme.surfaceVariant
                 }
 
             val textColor =
                 if (message.isUser) {
-
-                    MaterialTheme
-                        .colorScheme
-                        .onPrimary
-
+                    MaterialTheme.colorScheme.onPrimary
                 } else {
-
-                    MaterialTheme
-                        .colorScheme
-                        .onSurfaceVariant
+                    MaterialTheme.colorScheme.onSurfaceVariant
                 }
 
             Surface(
 
                 modifier =
-                    Modifier.fillMaxWidth(0.86f),
+                    Modifier.fillMaxWidth(0.90f),
 
                 shape =
                     RoundedCornerShape(18.dp),
@@ -617,33 +593,360 @@ fun MessageBubble(
                     bubbleColor
             ) {
 
-                Text(
+                if (message.isUser) {
 
-                    text =
-                        if (
-                            message.text.isEmpty() &&
-                            !message.isUser
-                        ) {
-                            "▌"
-                        } else {
-                            message.text
-                        },
+                    Text(
+                        text = message.text,
 
-                    modifier =
-                        Modifier.padding(
-                            horizontal = 16.dp,
-                            vertical = 12.dp
-                        ),
+                        modifier =
+                            Modifier.padding(
+                                horizontal = 16.dp,
+                                vertical = 12.dp
+                            ),
 
-                    color =
-                        textColor,
+                        color = textColor,
 
-                    style =
-                        MaterialTheme
-                            .typography
-                            .bodyLarge
-                )
+                        style =
+                            MaterialTheme
+                                .typography
+                                .bodyLarge
+                    )
+
+                } else {
+
+                    MarkdownContent(
+                        text = message.text,
+                        textColor = textColor
+                    )
+                }
             }
+        }
+    }
+}
+
+@Composable
+fun MarkdownContent(
+    text: String,
+    textColor: Color
+) {
+
+    val lines = text.split("\n")
+
+    Column(
+        modifier =
+            Modifier.padding(
+                horizontal = 16.dp,
+                vertical = 12.dp
+            ),
+
+        verticalArrangement =
+            Arrangement.spacedBy(6.dp)
+    ) {
+
+        var inCodeBlock = false
+        var codeText = ""
+
+        for (line in lines) {
+
+            if (line.trim().startsWith("```")) {
+
+                if (!inCodeBlock) {
+
+                    inCodeBlock = true
+                    codeText = ""
+
+                } else {
+
+CodeBlock(
+                        code = codeText
+                    )
+
+                    inCodeBlock = false
+                }
+
+                continue
+            }
+
+            if (inCodeBlock) {
+
+                codeText += line + "\n"
+
+                continue
+            }
+
+            when {
+
+                line.startsWith("### ") -> {
+
+                    Text(
+                        text =
+                            line.removePrefix("### "),
+
+                        color = textColor,
+
+                        style =
+                            MaterialTheme
+                                .typography
+                                .titleMedium,
+
+                        fontWeight =
+                            FontWeight.Bold
+                    )
+                }
+
+                line.startsWith("## ") -> {
+
+                    Text(
+                        text =
+                            line.removePrefix("## "),
+
+                        color = textColor,
+
+                        style =
+                            MaterialTheme
+                                .typography
+                                .titleLarge,
+
+                        fontWeight =
+                            FontWeight.Bold
+                    )
+                }
+
+                line.startsWith("# ") -> {
+
+                    Text(
+                        text =
+                            line.removePrefix("# "),
+
+                        color = textColor,
+
+                        style =
+                            MaterialTheme
+                                .typography
+                                .headlineSmall,
+
+                        fontWeight =
+                            FontWeight.Bold
+                    )
+                }
+
+                line.startsWith("- ") -> {
+
+                    Row {
+
+                        Text(
+                            text = "•",
+                            color = textColor
+                        )
+
+                        Spacer(
+                            modifier =
+                                Modifier.width(8.dp)
+                        )
+
+                        MarkdownText(
+                            text =
+                                line.removePrefix("- "),
+
+                            color =
+                                textColor
+                        )
+                    }
+                }
+
+                line.startsWith("* ") -> {
+
+                    Row {
+
+                        Text(
+                            text = "•",
+                            color = textColor
+                        )
+
+                        Spacer(
+                            modifier =
+                                Modifier.width(8.dp)
+                        )
+
+                        MarkdownText(
+                            text =
+                                line.removePrefix("* "),
+
+                            color =
+                                textColor
+                        )
+                    }
+                }
+
+                line.isBlank() -> {
+
+                    Spacer(
+                        modifier =
+                            Modifier.padding(2.dp)
+                    )
+                }
+
+                else -> {
+
+                    MarkdownText(
+                        text = line,
+                        color = textColor
+                    )
+                }
+            }
+        }
+
+        if (inCodeBlock && codeText.isNotEmpty()) {
+
+            CodeBlock(
+                code = codeText
+            )
+        }
+    }
+}
+
+@Composable
+fun MarkdownText(
+    text: String,
+    color: Color
+) {
+
+    val annotated =
+        buildAnnotatedString {
+
+            var position = 0
+
+            while (position < text.length) {
+
+                if (
+                    position + 1 < text.length &&
+                    text[position] == '*' &&
+                    text[position + 1] == '*'
+                ) {
+
+                    val end =
+                        text.indexOf(
+                            "**",
+                            position + 2
+                        )
+
+                    if (end >= 0) {
+
+                        val content =
+                            text.substring(
+                                position + 2,
+                                end
+                            )
+
+                        pushStyle(
+                            SpanStyle(
+                                fontWeight =
+                                    FontWeight.Bold
+                            )
+                        )
+
+                        append(content)
+
+                        pop()
+
+                        position = end + 2
+
+                        continue
+                    }
+                }
+
+                if (text[position] == '`') {
+
+                    val end =
+                        text.indexOf(
+                            "`",
+                            position + 1
+                        )
+
+                    if (end >= 0) {
+
+                        val content =
+                            text.substring(
+                                position + 1,
+                                end
+                            )
+
+                        pushStyle(
+                            SpanStyle(
+                                fontFamily =
+                                    FontFamily.Monospace,
+
+                                fontSize =
+                                    14.sp
+                            )
+                        )
+
+                        append(content)
+
+                        pop()
+
+                        position = end + 1
+
+                        continue
+                    }
+                }
+
+                append(text[position])
+
+                position++
+            }
+        }
+
+    Text(
+        text = annotated,
+        color = color,
+        style =
+            MaterialTheme
+                .typography
+                .bodyLarge
+    )
+}
+
+@Composable
+fun CodeBlock(
+    code: String
+) {
+
+    Surface(
+        modifier =
+            Modifier.fillMaxWidth(),
+
+        shape =
+            RoundedCornerShape(12.dp),
+
+        tonalElevation = 4.dp
+    ) {
+
+        Box(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .background(
+                        MaterialTheme
+                            .colorScheme
+                            .surface
+                    )
+                    .padding(14.dp)
+        ) {
+
+            Text(
+                text = code.trimEnd(),
+
+                fontFamily =
+                    FontFamily.Monospace,
+
+                fontSize = 13.sp,
+
+                color =
+                    MaterialTheme
+                        .colorScheme
+                        .onSurface
+            )
         }
     }
 }
