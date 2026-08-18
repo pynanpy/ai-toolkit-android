@@ -1,19 +1,24 @@
 package com.pynanpy.aitoolkit
 
 import android.os.Bundle
+
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+
 import androidx.compose.material3.CircularProgressIndicator
+
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 
 class MainActivity : ComponentActivity() {
 
@@ -30,39 +35,38 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+
 @Composable
 private fun AIToolkitApp() {
 
     val context =
-        androidx.compose.ui.platform.LocalContext.current
+        LocalContext.current
 
-    var conversations by remember {
+    var conversations by
         mutableStateOf(
             emptyList<ChatConversation>()
         )
-    }
 
-    var currentConversationId by remember {
+    var currentConversationId by
         mutableStateOf<String?>(null)
-    }
 
-    var settings by remember {
+    var settings by
         mutableStateOf(
             AppSettings()
         )
-    }
 
-    var isLoaded by remember {
+    var isLoaded by
         mutableStateOf(false)
-    }
 
-    var showSettings by remember {
+    var showSettings by
         mutableStateOf(false)
-    }
 
-    var saveSettingsRequest by remember {
+    var showDrawer by
+        mutableStateOf(false)
+
+    var saveSettingsRequest by
         mutableStateOf<AppSettings?>(null)
-    }
+
 
     /*
      * 读取本地设置和聊天记录
@@ -109,6 +113,7 @@ private fun AIToolkitApp() {
         isLoaded = true
     }
 
+
     /*
      * 保存设置
      */
@@ -126,7 +131,12 @@ private fun AIToolkitApp() {
         saveSettingsRequest = null
     }
 
-    if (!isLoaded) {
+
+    /*
+     * 加载页面
+     */
+
+if (!isLoaded) {
 
         Box(
             modifier =
@@ -141,6 +151,7 @@ private fun AIToolkitApp() {
 
         return
     }
+
 
     /*
      * 设置页面
@@ -158,16 +169,17 @@ private fun AIToolkitApp() {
             initialModel =
                 settings.model,
 
-            onSave = { baseUrl, apiKey, model ->
+            onSave = {
+                    baseUrl,
+                    apiKey,
+                    model ->
 
                 val newSettings =
                     AppSettings(
                         baseUrl =
                             baseUrl,
-
                         apiKey =
                             apiKey,
-
                         model =
                             model
                     )
@@ -189,6 +201,7 @@ private fun AIToolkitApp() {
         return
     }
 
+
     /*
      * 获取当前对话
      */
@@ -198,13 +211,18 @@ private fun AIToolkitApp() {
                 currentConversationId
         }
 
+
+    /*
+     * 当前对话不存在时自动创建
+     */
     if (currentConversation == null) {
 
         val newConversation =
             ChatConversation()
 
         conversations =
-            conversations + newConversation
+            conversations +
+                newConversation
 
         currentConversationId =
             newConversation.id
@@ -217,6 +235,128 @@ private fun AIToolkitApp() {
         return
     }
 
+
+    /*
+     * 历史对话侧栏
+     */
+    if (showDrawer) {
+
+        ConversationDrawer(
+
+            conversations =
+                conversations,
+
+            currentConversationId =
+                currentConversationId,
+
+            onSelectConversation = {
+                id ->
+
+                currentConversationId =
+                    id
+
+                showDrawer = false
+            },
+
+            onNewConversation = {
+
+                val newConversation =
+                    ChatConversation()
+
+                conversations =
+                    conversations +
+                        newConversation
+
+                currentConversationId =
+                    newConversation.id
+
+                ChatRepository.saveConversations(
+                    context,
+                    conversations
+                )
+
+                showDrawer = false
+            },
+
+            onDeleteConversation = {
+                id ->
+
+                val remaining =
+                    conversations.filter {
+                        it.id != id
+                    }
+
+if (remaining.isEmpty()) {
+
+                    val newConversation =
+                        ChatConversation()
+
+                    conversations =
+                        listOf(
+                            newConversation
+                        )
+
+                    currentConversationId =
+                        newConversation.id
+
+                } else {
+
+                    conversations =
+                        remaining
+
+                    if (
+                        currentConversationId ==
+                            id
+                    ) {
+
+                        currentConversationId =
+                            remaining
+                                .maxByOrNull {
+                                    it.updatedAt
+                                }?.id
+                    }
+                }
+
+                ChatRepository.saveConversations(
+                    context,
+                    conversations
+                )
+            },
+
+            onClearAll = {
+
+                val newConversation =
+                    ChatConversation()
+
+                conversations =
+                    listOf(
+                        newConversation
+                    )
+
+                currentConversationId =
+                    newConversation.id
+
+                ChatRepository.saveConversations(
+                    context,
+                    conversations
+                )
+            },
+
+            onOpenSettings = {
+
+                showDrawer = false
+                showSettings = true
+            },
+
+            onDismiss = {
+                showDrawer = false
+            }
+        )
+
+        return
+    }
+
+
     /*
      * 聊天页面
      */
@@ -228,7 +368,8 @@ private fun AIToolkitApp() {
         settings =
             settings,
 
-        onConversationChanged = { updated ->
+        onConversationChanged = {
+            updated ->
 
             conversations =
                 conversations.map {
