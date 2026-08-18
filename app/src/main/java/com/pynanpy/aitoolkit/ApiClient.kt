@@ -6,6 +6,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.MediaType.Companion.toMediaType
+import org.json.JSONArray
 import org.json.JSONObject
 
 object ApiClient {
@@ -17,7 +18,7 @@ object ApiClient {
         baseUrl: String,
         apiKey: String,
         model: String,
-        message: String,
+        messages: List<ChatMessage>,
         onChunk: suspend (String) -> Unit
     ): Result<Unit> = withContext(Dispatchers.IO) {
 
@@ -31,113 +32,142 @@ object ApiClient {
             json.put("model", model)
             json.put("stream", true)
 
-            val messages = org.json.JSONArray()
+            val jsonMessages = JSONArray()
 
-            val userMessage = JSONObject()
-            userMessage.put("role", "user")
-            userMessage.put("content", message)
+            messages.forEach { message ->
 
-            messages.put(userMessage)
+                val item = JSONObject()
 
-            json.put("messages", messages)
-
-            val body = json
-                .toString()
-                .toRequestBody(
-                    "application/json".toMediaType()
+                item.put(
+                    "role",
+                    if (message.isUser) {
+                        "user"
+                    } else {
+                        "assistant"
+                    }
                 )
 
-            val request = Request.Builder()
-                .url(url)
-                .post(body)
-                .addHeader(
-                    "Authorization",
-                    "Bearer $apiKey"
+                item.put(
+                    "content",
+                    message.text
                 )
-                .addHeader(
-                    "Content-Type",
-                    "application/json"
-                )
-                .build()
 
-            client.newCall(request).execute().use { response ->
+                jsonMessages.put(item)
+            }
 
-                if (!response.isSuccessful) {
+            json.put(
+                "messages",
+                jsonMessages
+            )
 
-                    val error =
-                        response.body?.string()
-                            ?: "未知错误"
-
-                    return@withContext Result.failure(
-                        Exception(
-                            "HTTP ${response.code}: $error"
-                        )
+            val body =
+                json.toString()
+                    .toRequestBody(
+                        "application/json".toMediaType()
                     )
-                }
 
-                val source =
-                    response.body?.source()
-                        ?: return@withContext Result.failure(
-                            Exception("服务器没有返回数据")
+            val request =
+                Request.Builder()
+                    .url(url)
+                    .post(body)
+                    .addHeader(
+                        "Authorization",
+                        "Bearer $apiKey"
+                    )
+                    .addHeader(
+                        "Content-Type",
+                        "application/json"
+                    )
+                    .build()
+
+            client
+                .newCall(request)
+                .execute()
+                .use { response ->
+
+                    if (!response.isSuccessful) {
+
+                        val error =
+                            response.body
+                                ?.string()
+                                ?: "未知错误"
+
+                        return@withContext Result.failure(
+                            Exception(
+                                "HTTP ${response.code}: $error"
+                            )
                         )
-
-                while (!source.exhausted()) {
-
-                    val line =
-                        source.readUtf8Line()
-                            ?: continue
-
-                    if (!line.startsWith("data:")) {
-                        continue
                     }
 
-                    val data =
-                        line.removePrefix("data:")
-                            .trim()
-
-                    if (data == "[DONE]") {
-                        break
-                    }
-
-                    try {
-
-                        val jsonChunk =
-                            JSONObject(data)
-
-                        val choices =
-                            jsonChunk.optJSONArray(
-                                "choices"
+                    val source =
+                        response.body?.source()
+                            ?: return@withContext Result.failure(
+                                Exception(
+                                    "服务器没有返回数据"
+                                )
                             )
 
-                        if (choices == null ||
-                            choices.length() == 0
-                        ) {
+                    while (!source.exhausted()) {
+
+                        val line =
+                            source.readUtf8Line()
+                                ?: continue
+
+                        if (!line.startsWith("data:")) {
                             continue
                         }
 
-                        val choice =
-                            choices.getJSONObject(0)
+                        val data =
+                            line
+                                .removePrefix("data:")
+                                .trim()
 
-                        val delta =
-                            choice.optJSONObject("delta")
-
-                        val content =
-                            delta?.optString(
-                                "content",
-                                ""
-                            ) ?: ""
-
-                        if (content.isNotEmpty()) {
-                            onChunk(content)
+                        if (data == "[DONE]") {
+                            break
                         }
 
-                    } catch (_: Exception) {
-                        // 忽略无法解析的 SSE 数据
-                    }
-                }
+                        try {
 
-                Result.success(Unit)
-            }
+                            val jsonChunk =
+                                JSONObject(data)
+
+                            val choices =
+                                jsonChunk.optJSONArray(
+                                    "choices"
+                                )
+
+                            if (
+                                choices == null ||
+                                choices.length() == 0
+                            ) {
+                                continue
+                            }
+
+                            val choice =
+                                choices.getJSONObject(0)
+
+                            val delta =
+                                choice.optJSONObject(
+                                    "delta"
+                                )
+
+                            val content =
+                                delta?.optString(
+                                    "content",
+                                    ""
+                                ) ?: ""
+
+                            if (content.isNotEmpty()) {
+                                onChunk(content)
+                            }
+
+                        } catch (_: Exception) {
+                            // 忽略无法解析的 SSE 数据
+                        }
+                    }
+
+                    Result.success(Unit)
+                }
 
         } catch (e: Exception) {
 
