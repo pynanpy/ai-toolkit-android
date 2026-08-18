@@ -1,13 +1,13 @@
 package com.pynanpy.aitoolkit
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -20,7 +20,7 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
@@ -35,8 +35,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -76,7 +76,9 @@ fun ChatScreen(
         conversation.messages.size
     ) {
 
-        if (conversation.messages.isNotEmpty()) {
+        if (
+            conversation.messages.isNotEmpty()
+        ) {
 
             listState.animateScrollToItem(
                 conversation.messages.lastIndex
@@ -85,7 +87,6 @@ fun ChatScreen(
     }
 
     Column(
-
         modifier =
             Modifier
                 .fillMaxSize()
@@ -93,17 +94,23 @@ fun ChatScreen(
     ) {
 
         ChatTopBar(
-            title = conversation.title,
-            model = settings.model,
+            title =
+                conversation.title,
+
+            model =
+                settings.model,
+
             onNewConversation =
                 onNewConversation,
+
             onOpenSettings =
                 onOpenSettings
         )
 
         LazyColumn(
 
-            state = listState,
+            state =
+                listState,
 
             modifier =
                 Modifier
@@ -117,15 +124,17 @@ fun ChatScreen(
                 Arrangement.spacedBy(10.dp)
         ) {
 
-            itemsIndexed(
-                conversation.messages
-            ) { index, message ->
+            items(
+                items =
+                    conversation.messages,
+
+                key = {
+                    it.id
+                }
+            ) { message ->
 
                 MessageBubble(
-                    message = message,
-                    animate =
-                        index ==
-                            conversation.messages.lastIndex
+                    message = message
                 )
             }
 
@@ -137,8 +146,7 @@ fun ChatScreen(
             }
         }
 
-        Surface(
-
+Surface(
             modifier =
                 Modifier.fillMaxWidth(),
 
@@ -158,7 +166,8 @@ fun ChatScreen(
 
                 OutlinedTextField(
 
-                    value = input,
+                    value =
+                        input,
 
                     onValueChange = {
                         input = it
@@ -180,7 +189,7 @@ fun ChatScreen(
                         !isLoading
                 )
 
-Spacer(
+                Spacer(
                     modifier =
                         Modifier.width(8.dp)
                 )
@@ -218,6 +227,7 @@ Spacer(
                                     messages =
                                         conversation.messages +
                                             errorMessage,
+
                                     updatedAt =
                                         System.currentTimeMillis()
                                 )
@@ -230,22 +240,18 @@ Spacer(
 
                         val userMessage =
                             ChatMessage(
-                                text = userText,
-                                isUser = true
+                                text =
+                                    userText,
+
+                                isUser =
+                                    true
                             )
 
-                        val aiMessage =
-                            ChatMessage(
-                                text = "",
-                                isUser = false
-                            )
-
-                        val updatedConversation =
+                        val conversationWithUser =
                             conversation.copy(
                                 messages =
                                     conversation.messages +
-                                        userMessage +
-                                        aiMessage,
+                                        userMessage,
 
                                 title =
                                     if (
@@ -262,16 +268,29 @@ Spacer(
                                     System.currentTimeMillis()
                             )
 
+                        val aiMessage =
+                            ChatMessage(
+                                text = "",
+                                isUser = false
+                            )
+
+                        val conversationWithPlaceholder =
+                            conversationWithUser.copy(
+                                messages =
+                                    conversationWithUser.messages +
+                                        aiMessage,
+
+                                updatedAt =
+                                    System.currentTimeMillis()
+                            )
+
                         onConversationChanged(
-                            updatedConversation
+                            conversationWithPlaceholder
                         )
 
                         isLoading = true
 
                         scope.launch {
-
-                            val aiId =
-                                aiMessage.id
 
                             val result =
                                 ApiClient.sendMessageStream(
@@ -285,42 +304,39 @@ Spacer(
                                     model =
                                         settings.model,
 
-                                    message =
-                                        userText,
+                                    messages =
+                                        conversationWithUser.messages,
 
                                     onChunk = { chunk ->
 
-                                        val currentConversation =
-                                            conversationState(
-                                                updatedConversation,
-                                                aiId,
+val updated =
+                                            appendToMessage(
+                                                conversationWithPlaceholder,
+                                                aiMessage.id,
                                                 chunk
                                             )
 
                                         onConversationChanged(
-                                            currentConversation
-                                        )
-
-                                        listState.animateScrollToItem(
-                                            currentConversation
-                                                .messages
-                                                .lastIndex
+                                            updated
                                         )
                                     }
                                 )
 
                             result.onFailure { error ->
 
-                                val failed =
-                                    updatedConversation
-                                        .withMessageText(
-                                            aiId,
-                                            "请求失败：\n" +
-                                                (
-                                                    error.message
-                                                        ?: "未知错误"
-                                                )
+                                val errorText =
+                                    "请求失败：\n" +
+                                        (
+                                            error.message
+                                                ?: "未知错误"
                                         )
+
+                                val failed =
+                                    replaceMessage(
+                                        conversationWithPlaceholder,
+                                        aiMessage.id,
+                                        errorText
+                                    )
 
                                 onConversationChanged(
                                     failed
@@ -329,12 +345,7 @@ Spacer(
 
                             isLoading = false
                         }
-                    },
-
-                    modifier =
-                        Modifier.padding(
-                            top = 6.dp
-                        )
+                    }
                 ) {
 
                     if (isLoading) {
@@ -357,59 +368,64 @@ private fun createTitle(
             .replace("\n", " ")
             .trim()
 
-    return if (clean.length <= 18) {
+    return if (
+        clean.length <= 18
+    ) {
         clean
     } else {
         clean.take(18) + "…"
     }
 }
 
-private fun conversationState(
+private fun appendToMessage(
     conversation: ChatConversation,
     messageId: String,
     chunk: String
 ): ChatConversation {
 
-    val messages =
-        conversation.messages
-            .map { message ->
+    return conversation.copy(
+
+        messages =
+            conversation.messages.map {
 
                 if (
-                    message.id == messageId
+                    it.id == messageId
                 ) {
 
-                    message.copy(
+                    it.copy(
                         text =
-                            message.text + chunk
+                            it.text + chunk
                     )
 
                 } else {
-                    message
+                    it
                 }
-            }
+            },
 
-    return conversation.copy(
-        messages = messages,
         updatedAt =
             System.currentTimeMillis()
     )
 }
 
-private fun ChatConversation.withMessageText(
+private fun replaceMessage(
+    conversation: ChatConversation,
     messageId: String,
     text: String
 ): ChatConversation {
 
-    return copy(
+    return conversation.copy(
+
         messages =
-            messages.map { message ->
+            conversation.messages.map {
 
                 if (
-                    message.id == messageId
+                    it.id == messageId
                 ) {
-                    message.copy(text = text)
-} else {
-                    message
+                    it.copy(
+                        text = text
+                    )
+                } else {
+                    it
                 }
             },
 
@@ -469,7 +485,8 @@ private fun ChatTopBar(
                 )
 
                 Text(
-                    text = model,
+                    text =
+                        model,
 
                     style =
                         MaterialTheme
@@ -503,21 +520,26 @@ private fun ThinkingIndicator() {
             label = "thinking"
         )
 
-    val alpha by transition.animateFloat(
-        initialValue = 0.35f,
-        targetValue = 1f,
+    val alpha by
+        transition.animateFloat(
+            initialValue =
+                0.35f,
 
-        animationSpec =
-            infiniteRepeatable(
-                animation =
-                    tween(700),
+            targetValue =
+                1f,
 
-                repeatMode =
-                    RepeatMode.Reverse
-            ),
+            animationSpec =
+                infiniteRepeatable(
+                    animation =
+                        tween(700),
 
-        label = "thinkingAlpha"
-    )
+                    repeatMode =
+                        RepeatMode.Reverse
+                ),
+
+            label =
+                "thinkingAlpha"
+        )
 
     Row(
 
@@ -538,7 +560,8 @@ private fun ThinkingIndicator() {
             modifier =
                 Modifier.width(20.dp),
 
-            strokeWidth = 2.dp
+            strokeWidth =
+                2.dp
         )
 
         Spacer(
@@ -547,7 +570,8 @@ private fun ThinkingIndicator() {
         )
 
         Text(
-            text = "AI 正在思考...",
+            text =
+                "AI 正在思考...",
 
             modifier =
                 Modifier.graphicsLayer {
@@ -564,44 +588,26 @@ private fun ThinkingIndicator() {
 
 @Composable
 private fun MessageBubble(
-    message: ChatMessage,
-    animate: Boolean
+    message: ChatMessage
 ) {
-
-    val horizontalArrangement =
-        if (message.isUser) {
-            Arrangement.End
-        } else {
-            Arrangement.Start
-        }
 
     AnimatedVisibility(
 
         visible = true,
 
         enter =
-            if (animate) {
-
-                fadeIn(
+            fadeIn(
+                animationSpec =
+                    tween(180)
+            ) +
+                slideInVertically(
                     animationSpec =
-                        tween(220)
-                ) +
-                    slideInVertically(
-                        animationSpec =
-                            tween(280),
+                        tween(240),
 
-                        initialOffsetY = {
-                            it / 5
-                        }
-                    )
-
-            } else {
-
-                fadeIn(
-                    animationSpec =
-                        tween(120)
+                    initialOffsetY = {
+                        it / 5
+                    }
                 )
-            }
     ) {
 
         Row(
@@ -610,7 +616,11 @@ private fun MessageBubble(
                 Modifier.fillMaxWidth(),
 
             horizontalArrangement =
-                horizontalArrangement
+                if (message.isUser) {
+                    Arrangement.End
+                } else {
+                    Arrangement.Start
+                }
         ) {
 
             val bubbleColor =
@@ -712,8 +722,11 @@ private fun MarkdownContent(
             Arrangement.spacedBy(6.dp)
     ) {
 
-        var inCodeBlock = false
-        var codeText = ""
+        var inCodeBlock =
+            false
+
+        var codeText =
+            ""
 
         for (line in lines) {
 
@@ -724,16 +737,21 @@ private fun MarkdownContent(
 
                 if (!inCodeBlock) {
 
-                    inCodeBlock = true
-                    codeText = ""
+                    inCodeBlock =
+                        true
+
+                    codeText =
+                        ""
 
                 } else {
 
                     CodeBlock(
-                        code = codeText
+                        code =
+                            codeText
                     )
 
-                    inCodeBlock = false
+                    inCodeBlock =
+                        false
                 }
 
                 continue
@@ -741,7 +759,8 @@ private fun MarkdownContent(
 
             if (inCodeBlock) {
 
-                codeText += line + "\n"
+                codeText +=
+                    line + "\n"
 
                 continue
             }
@@ -817,8 +836,11 @@ private fun MarkdownContent(
                     Row {
 
                         Text(
-                            text = "•",
-                            color = textColor
+                            text =
+                                "•",
+
+                            color =
+                                textColor
                         )
 
                         Spacer(
@@ -828,8 +850,7 @@ private fun MarkdownContent(
 
                         MarkdownText(
                             text =
-                                line
-                                    .drop(2),
+                                line.drop(2),
 
                             color =
                                 textColor
@@ -839,17 +860,20 @@ private fun MarkdownContent(
 
                 line.isBlank() -> {
 
-                    Spacer(
+Spacer(
                         modifier =
-                            Modifier.padding(2.dp)
+                            Modifier.width(1.dp)
                     )
                 }
 
                 else -> {
 
                     MarkdownText(
-                        text = line,
-                        color = textColor
+                        text =
+                            line,
+
+                        color =
+                            textColor
                     )
                 }
             }
@@ -861,7 +885,8 @@ private fun MarkdownContent(
         ) {
 
             CodeBlock(
-                code = codeText
+                code =
+                    codeText
             )
         }
     }
@@ -876,7 +901,8 @@ private fun MarkdownText(
     val annotated =
         buildAnnotatedString {
 
-            var position = 0
+            var position =
+                0
 
             while (
                 position < text.length
@@ -884,7 +910,7 @@ private fun MarkdownText(
 
                 if (
                     position + 1 <
-                    text.length &&
+                        text.length &&
                     text[position] == '*' &&
                     text[position + 1] == '*'
                 ) {
@@ -969,8 +995,11 @@ private fun MarkdownText(
         }
 
     Text(
-        text = annotated,
-        color = color,
+        text =
+            annotated,
+
+        color =
+            color,
 
         style =
             MaterialTheme
@@ -992,7 +1021,8 @@ private fun CodeBlock(
         shape =
             RoundedCornerShape(12.dp),
 
-        tonalElevation = 4.dp
+        tonalElevation =
+            4.dp
     ) {
 
         Box(
@@ -1026,4 +1056,3 @@ private fun CodeBlock(
         }
     }
 }
-   
