@@ -2,6 +2,7 @@ package com.pynanpy.aitoolkit
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import okhttp3.Call
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -9,10 +10,19 @@ import okhttp3.MediaType.Companion.toMediaType
 import org.json.JSONArray
 import org.json.JSONObject
 
+import java.util.concurrent.atomic.AtomicReference
+
 object ApiClient {
 
     private val client = OkHttpClient.Builder()
         .build()
+
+    private val currentCall =
+        AtomicReference<Call?>(null)
+
+    fun cancelCurrentRequest() {
+        currentCall.getAndSet(null)?.cancel()
+    }
 
     suspend fun sendMessageStream(
         baseUrl: String,
@@ -27,16 +37,26 @@ object ApiClient {
             val url =
                 baseUrl.trimEnd('/') + "/chat/completions"
 
-            val json = JSONObject()
+            val json =
+                JSONObject()
 
-            json.put("model", model)
-            json.put("stream", true)
+            json.put(
+                "model",
+                model
+            )
 
-            val jsonMessages = JSONArray()
+            json.put(
+                "stream",
+                true
+            )
 
-            messages.forEach { message ->
+            val jsonMessages =
+                JSONArray()
 
-                val item = JSONObject()
+            for (message in messages) {
+
+                val item =
+                    JSONObject()
 
                 item.put(
                     "role",
@@ -52,7 +72,9 @@ object ApiClient {
                     message.text
                 )
 
-                jsonMessages.put(item)
+                jsonMessages.put(
+                    item
+                )
             }
 
             json.put(
@@ -80,96 +102,137 @@ object ApiClient {
                     )
                     .build()
 
-            client
-                .newCall(request)
-                .execute()
-                .use { response ->
+            val call =
+                client.newCall(request)
 
-                    if (!response.isSuccessful) {
+            currentCall.set(call)
 
-                        val error =
-                            response.body
-                                ?.string()
-                                ?: "未知错误"
+            call.execute().use { response ->
 
-                        return@withContext Result.failure(
+                currentCall.compareAndSet(
+                    call,
+                    null
+                )
+
+                if (!response.isSuccessful) {
+
+                    val error =
+                        response.body?.string()
+                            ?: "未知错误"
+
+                    return@withContext Result.failure(
+                        Exception(
+                            "HTTP ${response.code}: $error"
+                        )
+                    )
+                }
+
+                val responseBody =
+                    response.body
+                        ?: return@withContext Result.failure(
                             Exception(
-                                "HTTP ${response.code}: $error"
+                                "服务器没有返回数据"
                             )
                         )
+
+                val source =
+                    responseBody.source()
+
+                while (!source.exhausted()) {
+
+                    val line =
+                        source.readUtf8Line()
+                            ?: continue
+
+                    if (
+                        !line.startsWith(
+                            "data:"
+                        )
+                    ) {
+                        continue
                     }
 
-                    val source =
-                        response.body?.source()
-                            ?: return@withContext Result.failure(
-                                Exception(
-                                    "服务器没有返回数据"
-                                )
+                    val data =
+                        line.removePrefix(
+                            "data:"
+                        ).trim()
+
+                    if (
+                        data == "[DONE]"
+                    ) {
+                        break
+                    }
+
+                    if (
+                        data.isEmpty()
+                    ) {
+                        continue
+                    }
+
+                    try {
+
+                        val chunk =
+                            JSONObject(data)
+
+                        val choices =
+                            chunk.optJSONArray(
+                                "choices"
                             )
 
-                    while (!source.exhausted()) {
-
-                        val line =
-                            source.readUtf8Line()
-                                ?: continue
-
-                        if (!line.startsWith("data:")) {
+                        if (
+                            choices == null ||
+                            choices.length() == 0
+                        ) {
                             continue
                         }
 
-                        val data =
-                            line
-                                .removePrefix("data:")
-                                .trim()
+                        val choice =
+                            choices.getJSONObject(0)
 
-                        if (data == "[DONE]") {
-                            break
+                        val delta =
+                            choice.optJSONObject(
+                                "delta"
+                            )
+
+                        val content =
+                            delta?.optString(
+                                "content",
+                                ""
+                            ) ?: ""
+
+                        if (
+                            content.isNotEmpty()
+                        ) {
+
+                            onChunk(
+                                content
+                            )
                         }
 
-                        try {
-
-                            val jsonChunk =
-                                JSONObject(data)
-
-                            val choices =
-                                jsonChunk.optJSONArray(
-                                    "choices"
-                                )
-
-                            if (
-                                choices == null ||
-                                choices.length() == 0
-                            ) {
-                                continue
-                            }
-
-                            val choice =
-                                choices.getJSONObject(0)
-
-                            val delta =
-                                choice.optJSONObject(
-                                    "delta"
-                                )
-
-                            val content =
-                                delta?.optString(
-                                    "content",
-                                    ""
-                                ) ?: ""
-
-                            if (content.isNotEmpty()) {
-                                onChunk(content)
-                            }
-
-                        } catch (_: Exception) {
-                            // 忽略无法解析的 SSE 数据
-                        }
+                    } catch (_: Exception) {
+                        // 忽略无法解析的 SSE 数据
                     }
-
-                    Result.success(Unit)
                 }
 
+                Result.success(Unit)
+            }
+
         } catch (e: Exception) {
+
+            currentCall.set(null)
+
+            if (
+                e is java.io.IOException &&
+                e.message?.contains(
+                    "canceled",
+                    ignoreCase = true
+                ) == true
+            ) {
+
+                return@withContext Result.success(
+                    Unit
+                )
+            }
 
             Result.failure(e)
         }
